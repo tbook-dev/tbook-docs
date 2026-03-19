@@ -1,0 +1,99 @@
+---
+title: Webhooks
+sidebar_position: 1
+slug: /webhooks
+---
+
+# Webhooks
+
+TBook sends webhook events when vault state changes. Use these to notify your customers about deposit settlements, redemption completions, and price updates.
+
+## Setup
+
+### 1. Register a Webhook
+
+```bash
+curl -X POST https://api.tbook.com/v1/webhooks \
+  -H "Authorization: Bearer tbk_secret_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhook",
+    "events": [
+      "vault.deposit_epoch.settled",
+      "vault.redeem_epoch.settled",
+      "vault.price.updated"
+    ]
+  }'
+```
+
+Save the `secret` from the response — you need it to verify signatures.
+
+### 2. Verify Signatures
+
+Every webhook includes an `X-TBook-Signature` header:
+
+```
+X-TBook-Signature: t=1679000000,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
+```
+
+Verify with the server SDK:
+
+```typescript
+import { TBookVaultServer } from "@tbook-dev/vault-node";
+
+const tbook = new TBookVaultServer({
+  webhookSecret: "whsec_YOUR_SECRET",
+});
+
+const event = tbook.webhooks.verify(rawBody, signatureHeader);
+```
+
+Or manually:
+
+```typescript
+import { createHmac } from "crypto";
+
+const [tPart, v1Part] = signature.split(",");
+const timestamp = tPart.replace("t=", "");
+const expectedSig = v1Part.replace("v1=", "");
+
+const payload = `${timestamp}.${rawBody}`;
+const computed = createHmac("sha256", webhookSecret)
+  .update(payload)
+  .digest("hex");
+
+if (computed !== expectedSig) throw new Error("Invalid signature");
+if (Date.now() / 1000 - Number(timestamp) > 300) throw new Error("Timestamp too old");
+```
+
+### 3. Respond with 2xx
+
+Return any 2xx status to acknowledge receipt. Non-2xx triggers retries.
+
+## Rotating Secrets
+
+You can rotate a webhook's signing secret at any time without downtime. The previous secret stays valid for 24 hours so your server can transition gracefully.
+
+```bash
+curl -X POST https://api.tbook.com/v1/webhooks/wh_abc123/rotate-secret \
+  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
+```
+
+### Dual Verification During Rotation
+
+During the 24-hour grace period, verify incoming webhooks against the **new** secret first. If that fails, fall back to the **old** secret:
+
+```typescript
+function verifyWithFallback(
+  body: string,
+  signatureHeader: string,
+  newSecret: string,
+  oldSecret: string,
+): boolean {
+  if (verifyWebhookSignature(newSecret, signatureHeader, body)) return true;
+  // Fall back to old secret during grace period
+  return verifyWebhookSignature(oldSecret, signatureHeader, body);
+}
+```
+
+After 24 hours the old secret expires and only the new secret will work. Update your stored secret as soon as you confirm the new one works.

@@ -1,0 +1,108 @@
+---
+title: Webhook Endpoints
+sidebar_position: 4
+---
+
+# Webhook Endpoints
+
+Manage webhook subscriptions. All webhook endpoints require a `tbk_secret_*` API key.
+
+---
+
+## POST /v1/webhooks
+
+Register a webhook endpoint.
+
+**Body:**
+
+```json
+{
+  "url": "https://your-app.com/webhook",
+  "events": ["vault.deposit_epoch.settled", "vault.price.updated"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "wh_abc123",
+  "url": "https://your-app.com/webhook",
+  "events": ["vault.deposit_epoch.settled", "vault.price.updated"],
+  "secret": "whsec_abc123..."
+}
+```
+
+Save the `secret` from the response — you need it to verify webhook signatures.
+
+---
+
+## GET /v1/webhooks
+
+List registered webhooks (secrets are masked in the response).
+
+---
+
+## PATCH /v1/webhooks/:id
+
+Update a webhook's URL or subscribed events.
+
+**Body:**
+
+```json
+{
+  "url": "https://your-app.com/new-webhook",
+  "events": ["vault.deposit_epoch.settled", "vault.price.updated"]
+}
+```
+
+Both fields are optional — include only the fields you want to change.
+
+- `url` must use HTTPS.
+- `events` must be a non-empty array of valid event types (see [Event Types](/webhooks/event-types)).
+
+**Response:**
+
+```json
+{
+  "id": "wh_abc123",
+  "url": "https://your-app.com/new-webhook",
+  "events": ["vault.deposit_epoch.settled", "vault.price.updated"],
+  "createdAt": "2026-03-18T10:00:00.000Z"
+}
+```
+
+---
+
+## POST /v1/webhooks/:id/rotate-secret
+
+Rotate the signing secret for a webhook. The previous secret remains valid for 24 hours to allow graceful migration.
+
+**Response:**
+
+```json
+{
+  "secret": "whsec_new_secret_here",
+  "previousSecretValidUntil": "2026-03-19T10:00:00.000Z"
+}
+```
+
+---
+
+## DELETE /v1/webhooks/:id
+
+Remove a webhook.
+
+---
+
+## GET /v1/events
+
+Poll for events (alternative to webhooks).
+
+**Query params:**
+
+| Param | Description |
+|-------|-------------|
+| `after` | Event ID to start from |
+| `types` | Comma-separated event types to filter |
+| `limit` | Max events to return (default 50) |

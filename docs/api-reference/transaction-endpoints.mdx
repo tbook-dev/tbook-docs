@@ -1,0 +1,114 @@
+---
+title: Transaction Endpoints
+sidebar_position: 3
+---
+
+# Transaction Endpoints
+
+All POST endpoints return an unsigned transaction. Sign it with your wallet or WaaS provider and submit to the network.
+
+---
+
+## POST /v1/vaults/:vaultId/tx/deposit
+
+Build a deposit transaction.
+
+**Path params:** `vaultId` — Vault identifier
+
+**Body:**
+
+```json
+{
+  "user": "WALLET_PUBKEY",
+  "amountUsdc": 100
+}
+```
+
+**Response:**
+
+```json
+{
+  "transaction": "base58_encoded_unsigned_transaction",
+  "message": "Deposit 100 USDC into TBook Vault (Epoch #2)"
+}
+```
+
+---
+
+## POST /v1/vaults/:vaultId/tx/redeem
+
+Build a redeem (request withdrawal) transaction.
+
+**Path params:** `vaultId` — Vault identifier
+
+**Body:**
+
+```json
+{
+  "user": "WALLET_PUBKEY",
+  "shares": 50
+}
+```
+
+**Response:**
+
+```json
+{
+  "transaction": "base58_encoded_unsigned_transaction",
+  "message": "Redeem 50 shares from TBook Vault (Epoch #2)"
+}
+```
+
+---
+
+## POST /v1/vaults/:vaultId/tx/claim
+
+Build a claim transaction (withdraw settled USDC).
+
+**Path params:** `vaultId` — Vault identifier
+
+**Body:**
+
+```json
+{
+  "user": "WALLET_PUBKEY"
+}
+```
+
+**Response:**
+
+```json
+{
+  "transaction": "base58_encoded_unsigned_transaction",
+  "message": "Claim settled USDC from TBook Vault"
+}
+```
+
+---
+
+## POST /v1/vaults/:vaultId/tx/cancel-deposit
+
+Cancel a pending deposit (0.1% fee applies).
+
+**Path params:** `vaultId` — Vault identifier
+
+**Body:**
+
+```json
+{
+  "user": "WALLET_PUBKEY"
+}
+```
+
+**Response:**
+
+```json
+{
+  "transaction": "base58_encoded_unsigned_transaction",
+  "message": "Cancel pending deposit (0.1% fee)"
+}
+```
+
+:::info
+Cancellation is only possible while the deposit epoch is in the **Open** state. Once the epoch is frozen, deposits cannot be cancelled.
+:::

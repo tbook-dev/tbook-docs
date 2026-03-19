@@ -1,0 +1,135 @@
+:root {
+  --ifm-color-primary: #635bff;
+  --ifm-color-primary-dark: #4b42e6;
+  --ifm-color-primary-darker: #3d34d9;
+  --ifm-color-primary-darkest: #2f26b3;
+  --ifm-color-primary-light: #7b74ff;
+  --ifm-color-primary-lighter: #908aff;
+  --ifm-color-primary-lightest: #b0acff;
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ifm-font-family-monospace: 'SF Mono', 'Fira Code', Consolas, 'Courier New',
+    monospace;
+  --ifm-heading-color: #1a1f36;
+  --ifm-font-color-base: #3c4257;
+  --ifm-line-height-base: 1.7;
+  --ifm-code-font-size: 90%;
+  --ifm-code-border-radius: 4px;
+}
+
+/* ---- Typography ---- */
+
+h1, h2, h3, h4, h5, h6 {
+  color: #1a1f36;
+  font-weight: 600;
+}
+
+/* ---- Content width ---- */
+
+.markdown {
+  max-width: 800px;
+}
+
+/* ---- Sidebar ---- */
+
+.menu {
+  background: transparent;
+}
+
+.menu__link {
+  font-size: 0.9rem;
+  color: #697386;
+  border-radius: 0;
+}
+
+.menu__link:hover {
+  background: transparent;
+  color: #1a1f36;
+}
+
+.menu__link--active,
+.menu__link--active:hover {
+  background: transparent;
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+  border-left: 3px solid var(--ifm-color-primary);
+  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 3px);
+}
+
+.menu__list-item-collapsible .menu__link {
+  font-weight: 600;
+  color: #1a1f36;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Code blocks ---- */
+
+pre {
+  background: #f7f8fa !important;
+  border: 1px solid #e3e8ee;
+  border-radius: 6px;
+}
+
+code {
+  background: #f7f8fa;
+  border: 1px solid #e3e8ee;
+  color: #1a1f36;
+}
+
+pre code {
+  border: none;
+}
+
+/* ---- Navbar ---- */
+
+.navbar {
+  border-bottom: 1px solid #e3e8ee;
+  box-shadow: none;
+}
+
+.navbar__title {
+  font-weight: 700;
+  color: #1a1f36;
+}
+
+/* ---- Footer ---- */
+
+.footer {
+  border-top: 1px solid #e3e8ee;
+  background: #fafbfc;
+}
+
+/* ---- Tables ---- */
+
+table {
+  font-size: 0.9rem;
+}
+
+table th {
+  background: #f7f8fa;
+  font-weight: 600;
+  color: #1a1f36;
+}
+
+table td {
+  color: #3c4257;
+}
+
+/* ---- Admonitions ---- */
+
+.alert {
+  border-radius: 6px;
+}
+
+/* ---- Links ---- */
+
+a {
+  color: var(--ifm-color-primary);
+}
+
+a:hover {
+  color: var(--ifm-color-primary-dark);
+  text-decoration: none;
+}

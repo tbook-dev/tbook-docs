@@ -1,0 +1,69 @@
+---
+title: REST API
+sidebar_position: 4
+---
+
+# REST API
+
+No SDK needed — integrate with any language or framework using standard HTTP calls.
+
+## Base URL
+
+```
+https://api.tbook.com/v1
+```
+
+## Authentication
+
+Include your API key in every request:
+
+```
+Authorization: Bearer tbk_pub_YOUR_KEY
+```
+
+| Key Type | Prefix | Use Case |
+|----------|--------|----------|
+| Publishable | `tbk_pub_` | Frontend-safe, read + TX building |
+| Secret | `tbk_secret_` | Backend only, full access + webhooks |
+| Test | `tbk_test_` | Devnet sandbox, unlimited rate |
+
+## Example Requests
+
+### Get Vault Info
+
+```bash
+curl https://api.tbook.com/v1/vaults/rcUSDP \
+  -H "Authorization: Bearer tbk_pub_YOUR_KEY"
+```
+
+### Get Share Price
+
+```bash
+curl https://api.tbook.com/v1/vaults/rcUSDP/price \
+  -H "Authorization: Bearer tbk_pub_YOUR_KEY"
+```
+
+### Build Deposit Transaction
+
+```bash
+curl -X POST https://api.tbook.com/v1/vaults/rcUSDP/tx/deposit \
+  -H "Authorization: Bearer tbk_pub_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"user": "WALLET_PUBKEY", "amountUsdc": 100}'
+```
+
+Response:
+
+```json
+{
+  "transaction": "base58_encoded_unsigned_tx...",
+  "message": "Deposit 100 USDC into TBook Vault (Epoch #12)"
+}
+```
+
+Send the `transaction` string to your wallet or WaaS provider for signing and submission.
+
+## Next Steps
+
+- [API Reference](/api-reference) — Complete endpoint documentation with all request/response schemas
+- [Webhooks](/webhooks) — Subscribe to real-time vault events

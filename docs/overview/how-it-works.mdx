@@ -1,0 +1,91 @@
+---
+title: How It Works
+sidebar_position: 2
+---
+
+# How It Works
+
+## What is an Epoch?
+
+An **epoch** is a batch processing window — similar to T+1 settlement in traditional finance.
+
+- Multiple customer deposits and redemptions are collected into a single batch (epoch).
+- The curator processes each epoch: **freeze** the batch, **transfer** USDC to the vault, **invest** in the RWA strategy, and **settle** shares or USDC back to customers.
+- This batching model reduces gas costs and enables off-chain investment strategies that operate on daily cycles.
+
+---
+
+## Deposit Epoch Lifecycle
+
+```
+Open → Frozen → Processing → Settled
+                            ↘ RolledBack
+```
+
+### States
+
+| State | Description | Recommended UI |
+|-------|-------------|----------------|
+| **Open** | Accepting deposits. Customers can submit new deposit requests. | Show "Deposit now" button. |
+| **Frozen** | No new deposits accepted. The batch is being prepared. | Show "Processing batch..." |
+| **Processing** | USDC is being allocated to RWA strategies. | Show "Processing deposit..." |
+| **Settled** | Shares have been minted and distributed to depositors. | Notify customers: "Your shares are ready!" |
+| **RolledBack** | Epoch cancelled. All USDC is returned to depositors. | Notify customers: "Your deposit has been returned." |
+
+### Webhooks
+
+- `vault.deposit_epoch.settled` — fired when shares are minted and distributed.
+- `vault.deposit_epoch.rolled_back` — fired when the epoch is cancelled and USDC is returned.
+
+---
+
+## Redeem Epoch Lifecycle
+
+```
+Open → Frozen → Settled
+              ↘ RolledBack
+```
+
+The redeem lifecycle has **no Processing state** because redemption does not require extracting USDC from the vault — the USDC is already available.
+
+### States
+
+| State | Description | Recommended UI |
+|-------|-------------|----------------|
+| **Open** | Accepting redeem requests. | Show "Redeem" button. |
+| **Frozen** | No new redeems accepted. Batch is being processed. | Show "Processing redemption..." |
+| **Settled** | USDC is ready for customers to claim. | Notify customers: "USDC ready to claim!" |
+| **RolledBack** | Epoch cancelled. Shares are returned. | Notify customers: "Your redeem request has been cancelled." |
+
+### Webhooks
+
+- `vault.redeem_epoch.settled` — fired when USDC is available for claiming.
+- `vault.redeem_epoch.rolled_back` — fired when the epoch is cancelled.
+
+---
+
+## Lazy Settlement
+
+Customers' pending deposits and redeems are **automatically settled on their next interaction** with the vault (deposit, redeem, or claim).
+
+- The SDK handles this transparently — no extra transactions needed.
+- `effectiveShares` and `effectiveClaimableUsdc` already include unsettled amounts, so your UI always shows the correct balances.
+- **Platforms don't need to implement anything** — just read the effective values from the SDK.
+
+---
+
+## Recommended UI States
+
+| Customer Action | Immediate UI | After Settlement | Webhook |
+|-----------------|-------------|-----------------|---------|
+| Deposit USDC | "Pending, ~1-2 days" | "Shares minted!" | `deposit_epoch.settled` |
+| Request Redeem | "Pending redemption" | "USDC ready to claim!" | `redeem_epoch.settled` |
+| Vault paused | Disable deposit/redeem buttons | Re-enable when unpaused | `vault.paused` / `vault.unpaused` |
+
+---
+
+## Typical Timeline
+
+- **Deposit**: Submit deposit → ~1-2 days → shares available
+- **Redeem**: Submit redeem request → ~1-2 days → USDC claimable via `claim()`
+- Settlement timing depends on the curator's processing frequency (typically daily).

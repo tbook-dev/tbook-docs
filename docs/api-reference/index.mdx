@@ -1,0 +1,63 @@
+---
+title: API Reference
+sidebar_position: 1
+slug: /api-reference
+---
+
+# API Reference
+
+Base URL: `https://api.tbook.com/v1`
+
+## Authentication
+
+All `/v1/*` endpoints require an API key via `Authorization` header or `x-api-key` header.
+
+```
+Authorization: Bearer tbk_pub_YOUR_KEY
+```
+
+| Key Type | Prefix | Rate Limit | Access |
+|----------|--------|------------|--------|
+| Publishable | `tbk_pub_` | 100 req/min | Read + TX building |
+| Secret | `tbk_secret_` | 1000 req/min | Full access + webhooks |
+| Test | `tbk_test_` | Unlimited | All features (devnet only) |
+| Anonymous | — | 30 req/min | Read-only |
+
+## Rate Limiting
+
+Rate limit information is included in response headers:
+
+- `X-RateLimit-Limit` — Maximum requests per window
+- `X-RateLimit-Remaining` — Remaining requests in current window
+- `Retry-After` — Seconds to wait (included on 429 responses)
+
+## Error Responses
+
+All errors follow a consistent format:
+
+```json
+{
+  "error": "Human-readable error message",
+  "code": "VAULT_PAUSED"
+}
+```
+
+### HTTP Status Codes
+
+| HTTP Code | Meaning |
+|-----------|---------|
+| 400 | Invalid request (missing fields, bad pubkey) |
+| 401 | Missing or invalid API key |
+| 422 | SDK validation error (vault paused, min deposit, etc.) |
+| 429 | Rate limit exceeded |
+| 500 | Internal server error |
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `VAULT_PAUSED` | Vault is paused, no deposits/redeems accepted |
+| `MIN_DEPOSIT` | Amount below minimum (1 USDC) |
+| `MAX_EPOCH_DEPOSIT` | Amount exceeds epoch limit |
+| `EPOCH_NOT_OPEN` | Current epoch is not accepting entries |
+| `RPC_ERROR` | RPC call failed |

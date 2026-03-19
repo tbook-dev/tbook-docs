@@ -1,0 +1,43 @@
+---
+title: What is TBook Yield Layer
+sidebar_position: 1
+slug: /overview
+---
+
+import FundFlowDiagram from '@site/src/components/FundFlowDiagram';
+
+# What is TBook Yield Layer
+
+TBook Yield Layer is turnkey infrastructure that enables fintechs to offer RWA-backed yield to their customers — without building or managing any of the underlying investment infrastructure.
+
+Your platform integrates once via SDK or REST API. Your customers deposit USDC, earn yield from real-world assets, and redeem anytime. You stay in control of the user experience and signing keys.
+
+<FundFlowDiagram />
+
+## Current Product
+
+**rcUSDP Vault** — A US Treasury-backed Money Market Fund vault offering approximately 5% APY. All deposits are allocated to short-duration US Treasury Bills, providing institutional-grade yield with daily NAV updates.
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Non-custodial** | Your platform controls signing keys. TBook never holds customer funds directly. |
+| **T+1 Settlement** | Deposits and redemptions settle within 1-2 business days, similar to traditional finance. |
+| **Multisig Protected** | All vault operations require 2-of-3 multisig approval. |
+| **Third-party Audited** | Smart contracts audited by ScaleBit/MoveBit. |
+| **On-chain Verifiable** | All vault state, share balances, and settlements are verifiable on-chain. |
+
+## How It Works
+
+1. **Customers deposit USDC** via your platform's interface
+2. **Multisig approves** batch settlement (2-of-3 signers)
+3. **USDC is allocated** to RWA strategies (T-Bills, private credit, and more)
+4. **Yield accrues daily** as the NAV appreciates automatically
+5. **Redeem anytime** with T+1 settlement — USDC is returned to customers
+
+## Next Steps
+
+- [How It Works](/overview/how-it-works) — Understand the epoch lifecycle and settlement process
+- [Getting Started](/getting-started) — Choose your integration path and start building
+- [API Reference](/api-reference) — Full endpoint documentation

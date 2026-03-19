@@ -1,0 +1,47 @@
+---
+title: Getting Started
+sidebar_position: 1
+slug: /getting-started
+---
+
+import IntegrationFlowDiagram from '@site/src/components/IntegrationFlowDiagram';
+
+# Getting Started
+
+Integrate TBook Vault yield into your app in under 10 minutes.
+
+TBook Vault Gateway lets platforms offer RWA-backed USDC yield to their customers. The SDK handles all blockchain complexity — your customers just see "deposit USDC, earn yield."
+
+<IntegrationFlowDiagram />
+
+## Choose Your Integration Path
+
+| Path | Best For | What You Need |
+|------|----------|---------------|
+| [Client SDK](/getting-started/client-sdk) | Browser apps with wallet adapters | `@tbook-dev/vault-sdk` |
+| [React Hooks](/getting-started/react-hooks) | React apps with wallet adapter | `@tbook-dev/vault-react` |
+| [REST API](/getting-started/rest-api) | Any backend, mobile apps, WaaS providers | HTTP calls to `api.tbook.com` |
+| [Server SDK](/getting-started/server-sdk) | Backend event processing | `@tbook-dev/vault-node` |
+
+## Networks
+
+| Network | Use Case | USDC |
+|---------|----------|------|
+| `devnet` | Testing & development | Devnet USDC (free from faucet) |
+| `mainnet-beta` | Production | Real USDC |
+
+All SDK methods and API endpoints work identically on both networks. Set the network when initializing:
+
+```typescript
+// SDK
+const vault = new TBookVault({ network: "devnet" });
+
+// API
+// Use tbk_test_* keys for devnet, tbk_pub_*/tbk_secret_* for mainnet
+```
+
+## Next Steps
+
+- [API Reference](/api-reference) — Full endpoint documentation
+- [Webhook Events](/webhooks) — All event types and payloads
+- [How It Works](/overview/how-it-works) — Understand the epoch lifecycle

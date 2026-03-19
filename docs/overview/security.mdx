@@ -1,0 +1,60 @@
+---
+title: Security & Trust
+sidebar_position: 3
+---
+
+# Security & Trust
+
+TBook Yield Layer is designed with security as a foundational principle. Every layer of the system — from smart contracts to operational processes — is built to protect customer funds.
+
+## Multi-Signature Custody
+
+All vault operations require **2-of-3 multisig** approval. No single party can unilaterally move funds or modify vault parameters.
+
+- Deposit epoch settlement requires multisig authorization
+- Redeem epoch settlement requires multisig authorization
+- Vault configuration changes require multisig authorization
+
+## Role Separation
+
+The vault enforces strict role separation to minimize risk:
+
+| Role | Permissions | Purpose |
+|------|-------------|---------|
+| **Admin** | Update vault configuration, pause/unpause | System governance |
+| **Curator** | Freeze epochs, trigger settlements | Day-to-day operations |
+| **Operator** | Execute settlement transactions | Transaction execution |
+
+No single role has complete control over the vault. Critical operations require coordination between multiple roles.
+
+## Third-party Audited
+
+The TBook Vault smart contracts have been independently audited by **ScaleBit/MoveBit**, a leading blockchain security firm. The audit covered:
+
+- Smart contract logic and state management
+- Access control and authorization
+- Fund flow and accounting integrity
+- Edge cases and potential attack vectors
+
+## 24-Hour Timelock Protection
+
+Critical vault parameter changes are subject to a **24-hour timelock**. This provides a window for stakeholders to review and, if necessary, intervene before changes take effect.
+
+## On-chain Verifiable
+
+All vault state is stored on-chain and publicly verifiable:
+
+- **Total shares outstanding** — verify the total supply at any time
+- **Vault USDC balance** — confirm funds held in the vault
+- **Share price history** — track NAV updates over time
+- **Epoch settlements** — audit every deposit and redeem batch
+- **User balances** — verify individual share holdings
+
+## Non-custodial Architecture
+
+TBook Yield Layer is non-custodial by design:
+
+- **Platforms control their own signing keys** — TBook never has access to customer wallets
+- **Customer funds flow directly to the vault smart contract** — no intermediary custody
+- **Redemptions are claimable directly from the vault** — no dependency on TBook for withdrawals
+- **All transactions require customer or platform authorization** — TBook cannot initiate transactions on behalf of customers

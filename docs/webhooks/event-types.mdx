@@ -1,0 +1,145 @@
+---
+title: Event Types
+sidebar_position: 2
+---
+
+# Event Types
+
+## vault.deposit_epoch.frozen
+
+A deposit epoch has been frozen — no more deposits accepted in this batch.
+
+```json
+{
+  "type": "vault.deposit_epoch.frozen",
+  "data": {
+    "vaultId": "rcUSDP",
+    "epoch": 5,
+    "totalDepositUsdc": 15000.50,
+    "depositUserCount": 23
+  },
+  "timestamp": "2026-03-18T10:00:00Z"
+}
+```
+
+**Platform action**: Tell customers "Current batch closed. New deposits go to the next batch."
+
+---
+
+## vault.deposit_epoch.settled
+
+A deposit epoch has been settled — shares have been minted and distributed.
+
+```json
+{
+  "type": "vault.deposit_epoch.settled",
+  "data": {
+    "vaultId": "rcUSDP",
+    "epoch": 5,
+    "totalDepositUsdc": 15000.50,
+    "settledSharesMinted": 14950.25,
+    "sharePrice": "1.003361"
+  },
+  "timestamp": "2026-03-18T14:00:00Z"
+}
+```
+
+**Platform action**: Notify depositors "Your USDC has been converted to shares!"
+
+---
+
+## vault.deposit_epoch.rolled_back
+
+A deposit epoch was rolled back — deposits returned to customers.
+
+```json
+{
+  "type": "vault.deposit_epoch.rolled_back",
+  "data": {
+    "vaultId": "rcUSDP",
+    "epoch": 5,
+    "totalDepositUsdc": 15000.50
+  }
+}
+```
+
+**Platform action**: Notify customers "Batch cancelled. Your USDC is available to claim."
+
+---
+
+## vault.redeem_epoch.frozen
+
+A redeem epoch has been frozen.
+
+```json
+{
+  "type": "vault.redeem_epoch.frozen",
+  "data": {
+    "vaultId": "rcUSDP",
+    "epoch": 3,
+    "totalRedeemShares": 5000.0,
+    "redeemUserCount": 8
+  }
+}
+```
+
+---
+
+## vault.redeem_epoch.settled
+
+A redeem epoch has been settled — USDC available to claim.
+
+```json
+{
+  "type": "vault.redeem_epoch.settled",
+  "data": {
+    "vaultId": "rcUSDP",
+    "epoch": 3,
+    "totalRedeemShares": 5000.0,
+    "settledUsdcForRedeems": 5015.30
+  }
+}
+```
+
+**Platform action**: Notify redeemers "Your USDC is ready to claim!"
+
+---
+
+## vault.redeem_epoch.rolled_back
+
+A redeem epoch was rolled back — shares returned to customers.
+
+---
+
+## vault.price.updated
+
+Daily NAV price update.
+
+```json
+{
+  "type": "vault.price.updated",
+  "data": {
+    "vaultId": "rcUSDP",
+    "price": "1.003361",
+    "apy": "8.32",
+    "date": "2026-03-18"
+  }
+}
+```
+
+**Platform action**: Update displayed APY and portfolio values.
+
+---
+
+## vault.paused / vault.unpaused
+
+Vault operations paused or resumed.
+
+```json
+{
+  "type": "vault.paused",
+  "data": { "vaultId": "rcUSDP" }
+}
+```
+
+**Platform action**: Disable deposit/redeem buttons when paused, re-enable when unpaused.

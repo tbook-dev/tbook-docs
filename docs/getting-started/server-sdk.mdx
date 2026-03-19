@@ -1,0 +1,66 @@
+---
+title: Server SDK
+sidebar_position: 5
+---
+
+# Server SDK
+
+The Server SDK is designed for backend event processing, webhook verification, and server-side vault interactions.
+
+## Install
+
+```bash
+npm install @tbook-dev/vault-node
+```
+
+## Verify Webhooks
+
+```typescript
+import { TBookVaultServer } from "@tbook-dev/vault-node";
+
+const tbook = new TBookVaultServer({
+  secretKey: "tbk_secret_YOUR_KEY",
+  webhookSecret: "whsec_YOUR_WEBHOOK_SECRET",
+});
+
+// Express / Hono / Fastify
+app.post("/webhook", async (req, res) => {
+  const event = tbook.webhooks.verify(
+    req.body,
+    req.headers["x-tbook-signature"],
+  );
+
+  switch (event.type) {
+    case "vault.deposit_epoch.settled":
+      // Notify customers: "Your deposit has been converted to shares!"
+      break;
+    case "vault.redeem_epoch.settled":
+      // Notify customers: "Your USDC is ready to claim!"
+      break;
+    case "vault.price.updated":
+      // Update your price cache
+      break;
+  }
+
+  res.json({ received: true });
+});
+```
+
+## Register Webhook
+
+```typescript
+const webhook = await tbook.webhooks.create({
+  url: "https://your-app.com/webhook",
+  events: [
+    "vault.deposit_epoch.settled",
+    "vault.redeem_epoch.settled",
+    "vault.price.updated",
+  ],
+});
+// Save webhook.secret for verification
+```
+
+## Next Steps
+
+- [Webhook Events](/webhooks/event-types) — All event types and payloads
+- [Retry Policy](/webhooks/retry-policy) — How webhook delivery retries work

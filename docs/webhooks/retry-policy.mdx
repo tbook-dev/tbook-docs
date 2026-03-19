@@ -1,0 +1,41 @@
+---
+title: Retry Policy
+sidebar_position: 3
+---
+
+# Retry Policy
+
+## Delivery Behavior
+
+| Response | Behavior |
+|----------|----------|
+| 2xx | Success, no retry |
+| 4xx | Client error, no retry |
+| 5xx or timeout | Retry 3 times: 1 min, 5 min, 30 min |
+
+## Event Retention
+
+The last 1,000 events are retained. If your webhook endpoint was down for an extended period, you can recover missed events using the polling API.
+
+## Event Polling (Alternative)
+
+If you prefer polling over webhooks, or need to catch up on missed events:
+
+```bash
+curl "https://api.tbook.com/v1/events?types=vault.deposit_epoch.settled&limit=10" \
+  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
+```
+
+Store the last event ID and pass it as `after` on the next poll:
+
+```bash
+curl "https://api.tbook.com/v1/events?after=evt_abc123&limit=50" \
+  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
+```
+
+## Best Practices
+
+- **Respond quickly** — Return a 2xx response as soon as you receive the webhook. Process the event asynchronously if needed.
+- **Handle duplicates** — In rare cases, the same event may be delivered more than once. Use the event ID for idempotency.
+- **Monitor your endpoint** — Set up alerting for webhook delivery failures so you can address issues promptly.
+- **Use polling as a fallback** — Even with webhooks, consider periodic polling to catch any events that may have been missed.

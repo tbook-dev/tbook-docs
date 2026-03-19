@@ -1,0 +1,109 @@
+---
+title: Client SDK
+sidebar_position: 2
+---
+
+# Client SDK
+
+The Client SDK is ideal for browser-based applications that use wallet adapters for transaction signing.
+
+## Install
+
+```bash
+npm install @tbook-dev/vault-sdk @solana/web3.js @coral-xyz/anchor @solana/spl-token
+```
+
+## Read Vault State
+
+```typescript
+import { TBookVault } from "@tbook-dev/vault-sdk";
+
+const vault = new TBookVault({ network: "devnet" });
+
+// Get vault info
+const info = await vault.getVaultInfo();
+console.log(`TVL: $${info.tvlEstimate}, APY: ${info.apy}%`);
+
+// Get share price
+const price = await vault.getSharePrice();
+console.log(`1 share = $${price.price}`);
+
+// Get customer portfolio
+const user = await vault.getUserAccount("USER_PUBKEY");
+console.log(`Shares: ${user.effectiveShares}, Value: $${user.portfolioValueUsdc}`);
+```
+
+## Build Transactions
+
+The SDK returns **unsigned transactions**. You sign and submit them using your wallet adapter or WaaS provider.
+
+```typescript
+// Build a deposit transaction
+const { transaction, serialized, message } = await vault.buildDeposit({
+  user: userPublicKey,
+  amountUsdc: 100,
+});
+
+// Option 1: Browser wallet (Phantom, Backpack, etc.)
+const signature = await wallet.sendTransaction(transaction, connection);
+
+// Option 2: WaaS provider (Crossmint, Privy, Turnkey, etc.)
+const response = await waasApi.signAndSend({ transaction: serialized });
+
+// Option 3: Server-side keypair
+transaction.sign(keypair);
+const sig = await connection.sendRawTransaction(transaction.serialize());
+```
+
+## Full Deposit Flow
+
+```typescript
+import { TBookVault } from "@tbook-dev/vault-sdk";
+import { PublicKey } from "@solana/web3.js";
+
+const vault = new TBookVault({ network: "mainnet-beta" });
+
+// 1. Check vault is accepting deposits
+const info = await vault.getVaultInfo();
+if (info.paused) throw new Error("Vault is paused");
+
+// 2. Build the deposit transaction
+const { transaction } = await vault.buildDeposit({
+  user: new PublicKey("USER_WALLET_ADDRESS"),
+  amountUsdc: 100,  // human-readable, SDK handles decimals
+});
+
+// 3. Sign and submit (your wallet/WaaS handles this)
+const signature = await sendTransaction(transaction);
+
+// 4. Customer now has a pending deposit
+// It will be settled when the curator processes the epoch (typically 1-2 days)
+const account = await vault.getUserAccount("USER_WALLET_ADDRESS");
+console.log(`Pending deposit: ${account.pendingDepositUsdc} USDC`);
+```
+
+## Key Concepts
+
+### Epochs
+
+Customer deposits and redemptions are processed in **epochs** (batches), not individually.
+
+```
+Epoch lifecycle:
+Open → Frozen → Processing → Settled
+```
+
+- **Open**: Accepting new deposits/redeems
+- **Frozen**: No new entries, curator processing
+- **Processing**: USDC is being allocated to RWA strategies
+- **Settled**: Shares minted / USDC available to claim
+
+Typical settlement time: **1-2 days** (similar to T+1/T+2 in traditional finance).
+
+### Lazy Settlement
+
+The SDK automatically handles **lazy settlement** — when a customer's pending deposit/redeem from a previous epoch hasn't been settled on-chain yet, the SDK includes the necessary instructions in every transaction to trigger settlement transparently.
+
+### Share Price & NAV
+
+Share price is updated daily based on the underlying RWA portfolio's Net Asset Value (NAV). Use `getSharePrice()` to get the latest price and APY.

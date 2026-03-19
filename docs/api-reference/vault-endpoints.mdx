@@ -1,0 +1,126 @@
+---
+title: Vault Endpoints
+sidebar_position: 2
+---
+
+# Vault Endpoints
+
+Read-only endpoints for querying vault state, share prices, and customer accounts.
+
+---
+
+## GET /v1/vaults
+
+List all available vaults.
+
+**Response:**
+
+```json
+{
+  "vaults": [
+    {
+      "id": "rcUSDP",
+      "name": "rcUSDP Vault",
+      "description": "RWA yield vault powered by TBook",
+      "programId": "BdeE87CsE9kvxJJcxaJqxNsC2nC6hFft3UBzcgAm5X1i",
+      "network": "devnet",
+      "shareToken": { "symbol": "rcUSDP", "decimals": 6 },
+      "status": "active"
+    }
+  ]
+}
+```
+
+---
+
+## GET /v1/vaults/:vaultId
+
+Get vault state including current epoch info.
+
+**Path params:** `vaultId` — Vault identifier (e.g. `rcUSDP`)
+
+**Response:**
+
+```json
+{
+  "vault": {
+    "totalShares": 1.77,
+    "currentDepositEpoch": 2,
+    "currentRedeemEpoch": 2,
+    "paused": false,
+    "vaultUsdcBalance": 0.003,
+    "tvlEstimate": 0.003,
+    "cancelFeeBps": 10,
+    "minDeposit": 1,
+    "maxEpochDeposit": 100000
+  },
+  "depositEpoch": {
+    "epoch": 2,
+    "status": "Open",
+    "totalDepositUsdc": 0,
+    "depositUserCount": 0
+  },
+  "redeemEpoch": {
+    "epoch": 2,
+    "status": "Open",
+    "totalRedeemShares": 0,
+    "redeemUserCount": 0
+  }
+}
+```
+
+---
+
+## GET /v1/vaults/:vaultId/price
+
+Get current share price and APY.
+
+**Path params:** `vaultId` — Vault identifier
+
+**Response:**
+
+```json
+{
+  "price": "1.02754344",
+  "priceNum": 1.02754344,
+  "apy": "8.32",
+  "date": "2026-03-18"
+}
+```
+
+---
+
+## GET /v1/vaults/:vaultId/users/:pubkey
+
+Get customer account state (balances, pending operations, claimable amounts).
+
+**Path params:**
+
+- `vaultId` — Vault identifier
+- `pubkey` — Wallet public key
+
+**Response:**
+
+```json
+{
+  "shares": 100.0,
+  "effectiveShares": 100.0,
+  "pendingDepositUsdc": 0,
+  "pendingRedeemShares": 0,
+  "claimableUsdc": 0,
+  "effectiveClaimableUsdc": 0,
+  "portfolioValueUsdc": 102.75
+}
+```
+
+### Response Fields
+
+| Field | Description |
+|-------|-------------|
+| `shares` | On-chain settled share balance |
+| `effectiveShares` | Shares including unsettled amounts (use this for display) |
+| `pendingDepositUsdc` | USDC amount in pending deposit epoch |
+| `pendingRedeemShares` | Shares in pending redeem epoch |
+| `claimableUsdc` | USDC available to claim from settled redeems |
+| `effectiveClaimableUsdc` | Claimable USDC including unsettled amounts |
+| `portfolioValueUsdc` | Total portfolio value in USDC at current share price |
