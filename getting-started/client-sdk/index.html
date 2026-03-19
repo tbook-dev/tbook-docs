@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
 <title data-rh="true">Client SDK | TBook Yield Layer</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://tbook-dev.github.io/tbook-docs/getting-started/client-sdk"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Client SDK | TBook Yield Layer"><meta data-rh="true" name="description" content="The Client SDK is ideal for browser-based applications that use wallet adapters for transaction signing."><meta data-rh="true" property="og:description" content="The Client SDK is ideal for browser-based applications that use wallet adapters for transaction signing."><link data-rh="true" rel="icon" href="/tbook-docs/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://tbook-dev.github.io/tbook-docs/getting-started/client-sdk"><link data-rh="true" rel="alternate" href="https://tbook-dev.github.io/tbook-docs/getting-started/client-sdk" hreflang="en"><link data-rh="true" rel="alternate" href="https://tbook-dev.github.io/tbook-docs/getting-started/client-sdk" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Client SDK","item":"https://tbook-dev.github.io/tbook-docs/getting-started/client-sdk"}]}</script><link rel="stylesheet" href="/tbook-docs/assets/css/styles.8271c5ac.css">
-<script src="/tbook-docs/assets/js/runtime~main.d2210bd1.js" defer="defer"></script>
-<script src="/tbook-docs/assets/js/main.55f055d5.js" defer="defer"></script>
+<script src="/tbook-docs/assets/js/runtime~main.24247ccd.js" defer="defer"></script>
+<script src="/tbook-docs/assets/js/main.7b54deee.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -32,7 +32,7 @@
 <li class=""><strong>Processing</strong>: USDC is being allocated to RWA strategies</li>
 <li class=""><strong>Settled</strong>: Shares minted / USDC available to claim</li>
 </ul>
-<p>Typical settlement time: <strong>1-2 days</strong> (similar to T+1/T+2 in traditional finance).</p>
+<p>Settlement timing depends on the underlying RWA strategy and the curator&#x27;s processing frequency.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="lazy-settlement">Lazy Settlement<a href="#lazy-settlement" class="hash-link" aria-label="Direct link to Lazy Settlement" title="Direct link to Lazy Settlement" translate="no">​</a></h3>
 <p>The SDK automatically handles <strong>lazy settlement</strong> — when a customer&#x27;s pending deposit/redeem from a previous epoch hasn&#x27;t been settled on-chain yet, the SDK includes the necessary instructions in every transaction to trigger settlement transparently.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="share-price--nav">Share Price &amp; NAV<a href="#share-price--nav" class="hash-link" aria-label="Direct link to Share Price &amp; NAV" title="Direct link to Share Price &amp; NAV" translate="no">​</a></h3>
