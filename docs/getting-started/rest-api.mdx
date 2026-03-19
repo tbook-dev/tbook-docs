@@ -32,21 +32,21 @@ Authorization: Bearer tbk_pub_YOUR_KEY
 ### Get Vault Info
 
 ```bash
-curl https://api.tbook.com/v1/vaults/rcUSDP \
+curl https://api.tbook.com/v1/vaults/tbills-01 \
   -H "Authorization: Bearer tbk_pub_YOUR_KEY"
 ```
 
 ### Get Share Price
 
 ```bash
-curl https://api.tbook.com/v1/vaults/rcUSDP/price \
+curl https://api.tbook.com/v1/vaults/tbills-01/price \
   -H "Authorization: Bearer tbk_pub_YOUR_KEY"
 ```
 
 ### Build Deposit Transaction
 
 ```bash
-curl -X POST https://api.tbook.com/v1/vaults/rcUSDP/tx/deposit \
+curl -X POST https://api.tbook.com/v1/vaults/tbills-01/tx/deposit \
   -H "Authorization: Bearer tbk_pub_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"user": "WALLET_PUBKEY", "amountUsdc": 100}'

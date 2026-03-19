@@ -3,15 +3,25 @@ title: How It Works
 sidebar_position: 2
 ---
 
+import EpochLifecycleDiagram from '@site/src/components/EpochLifecycleDiagram';
+
 # How It Works
 
 ## What is an Epoch?
 
-An **epoch** is a batch processing window — similar to T+1 settlement in traditional finance.
+An **epoch** is a batch processing window that groups multiple customer deposits or redemptions into a single settlement cycle.
 
-- Multiple customer deposits and redemptions are collected into a single batch (epoch).
-- The curator processes each epoch: **freeze** the batch, **transfer** USDC to the vault, **invest** in the RWA strategy, and **settle** shares or USDC back to customers.
-- This batching model reduces gas costs and enables off-chain investment strategies that operate on daily cycles.
+Epochs exist for two reasons:
+
+1. **RWA assets inherently require time for subscription and redemption.** T-Bills settle on a T+1 basis, private credit may take longer. Epochs align on-chain operations with off-chain asset settlement, ensuring your customers' funds are properly invested before shares are issued.
+
+2. **Batch processing is more cost-efficient and secure.** Aggregating multiple requests into a single batch reduces on-chain gas costs, enables more accurate NAV calculation across the entire batch, and allows multisig signers to review and approve all operations in one pass.
+
+---
+
+## Epoch Lifecycle
+
+<EpochLifecycleDiagram />
 
 ---
 
@@ -46,7 +56,7 @@ Open → Frozen → Settled
               ↘ RolledBack
 ```
 
-The redeem lifecycle has **no Processing state** because redemption does not require extracting USDC from the vault — the USDC is already available.
+The redeem lifecycle has **no Processing state** because redemption does not require allocating USDC to an external RWA strategy — the vault already holds the USDC needed for distribution.
 
 ### States
 
@@ -78,7 +88,7 @@ Customers' pending deposits and redeems are **automatically settled on their nex
 
 | Customer Action | Immediate UI | After Settlement | Webhook |
 |-----------------|-------------|-----------------|---------|
-| Deposit USDC | "Pending, ~1-2 days" | "Shares minted!" | `deposit_epoch.settled` |
+| Deposit USDC | "Pending, processing..." | "Shares minted!" | `deposit_epoch.settled` |
 | Request Redeem | "Pending redemption" | "USDC ready to claim!" | `redeem_epoch.settled` |
 | Vault paused | Disable deposit/redeem buttons | Re-enable when unpaused | `vault.paused` / `vault.unpaused` |
 
@@ -86,6 +96,6 @@ Customers' pending deposits and redeems are **automatically settled on their nex
 
 ## Typical Timeline
 
-- **Deposit**: Submit deposit → ~1-2 days → shares available
-- **Redeem**: Submit redeem request → ~1-2 days → USDC claimable via `claim()`
-- Settlement timing depends on the curator's processing frequency (typically daily).
+- **Deposit**: Submit deposit → batch settlement → shares available
+- **Redeem**: Submit redeem request → batch settlement → USDC claimable via `claim()`
+- Settlement timing depends on the underlying RWA strategy and the curator's processing frequency.

@@ -12,18 +12,29 @@ TBook Yield Layer is turnkey infrastructure that enables fintechs to offer RWA-b
 
 Your platform integrates once via SDK or REST API. Your customers deposit USDC, earn yield from real-world assets, and redeem anytime. You stay in control of the user experience and signing keys.
 
+## How Funds Flow
+
 <FundFlowDiagram />
 
-## Current Product
+## Multi-Strategy Architecture
 
-**rcUSDP Vault** — A US Treasury-backed Money Market Fund vault offering approximately 5% APY. All deposits are allocated to short-duration US Treasury Bills, providing institutional-grade yield with daily NAV updates.
+TBook Yield Layer supports multiple RWA strategies — each strategy is deployed as an independent **Vault**. Your platform selects which vaults to offer based on your product needs and risk appetite.
+
+Available strategy types include:
+
+- **US Treasury Bills** — Short-duration government securities, institutional-grade yield
+- **Private Credit** — Higher-yield lending strategies with diversified credit exposure
+- **Gold** — Commodity-backed vaults for inflation hedging
+- **Additional strategies** — New RWA categories are added as the platform expands
+
+Each vault operates independently with its own epoch lifecycle, NAV oracle, and settlement cadence. This isolation ensures that risk is contained and settlement timing matches the underlying asset class.
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
 | **Non-custodial** | Your platform controls signing keys. TBook never holds customer funds directly. |
-| **T+1 Settlement** | Deposits and redemptions settle within 1-2 business days, similar to traditional finance. |
+| **Batch Settlement** | Deposits and redemptions are processed in batches (epochs), aligning on-chain settlement with off-chain RWA investment cycles. Settlement timing depends on the underlying asset. |
 | **Multisig Protected** | All vault operations require 2-of-3 multisig approval. |
 | **Third-party Audited** | Smart contracts audited by ScaleBit/MoveBit. |
 | **On-chain Verifiable** | All vault state, share balances, and settlements are verifiable on-chain. |
@@ -32,9 +43,9 @@ Your platform integrates once via SDK or REST API. Your customers deposit USDC, 
 
 1. **Customers deposit USDC** via your platform's interface
 2. **Multisig approves** batch settlement (2-of-3 signers)
-3. **USDC is allocated** to RWA strategies (T-Bills, private credit, and more)
-4. **Yield accrues daily** as the NAV appreciates automatically
-5. **Redeem anytime** with T+1 settlement — USDC is returned to customers
+3. **USDC is allocated** to the vault's RWA strategy (T-Bills, private credit, gold, and more)
+4. **Yield accrues** as the NAV appreciates — reflected automatically in share price
+5. **Redeem anytime** — batch settlement processes redemptions and returns USDC to customers
 
 ## Next Steps
 
