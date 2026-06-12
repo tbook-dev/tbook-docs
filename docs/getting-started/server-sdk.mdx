@@ -1,66 +1,53 @@
 ---
 title: Server SDK
-sidebar_position: 5
+sidebar_position: 9
 ---
 
 # Server SDK
 
-The Server SDK is designed for backend event processing, webhook verification, and server-side vault interactions.
+`@tbook-dev/vault-node` is the backend companion: webhook signature verification plus a typed client for the REST API.
 
-## Install
+:::info SDK release status
+Ships at **0.2.0** with the v1 sandbox release. The [REST contract](/api-reference) is normative.
+:::
 
-```bash
-npm install @tbook-dev/vault-node
-```
+## Verify webhooks
 
-## Verify Webhooks
-
-```typescript
+```ts
 import { TBookVaultServer } from "@tbook-dev/vault-node";
 
 const tbook = new TBookVaultServer({
-  secretKey: "tbk_secret_YOUR_KEY",
-  webhookSecret: "whsec_YOUR_WEBHOOK_SECRET",
+  apiKey: process.env.TBK_SECRET_KEY,
+  webhookSecret: process.env.WHSEC,
 });
 
-// Express / Hono / Fastify
-app.post("/webhook", async (req, res) => {
-  const event = tbook.webhooks.verify(
-    req.body,
-    req.headers["x-tbook-signature"],
-  );
-
-  switch (event.type) {
-    case "vault.deposit_epoch.settled":
-      // Notify customers: "Your deposit has been converted to shares!"
-      break;
-    case "vault.redeem_epoch.settled":
-      // Notify customers: "Your USDC is ready to claim!"
-      break;
-    case "vault.price.updated":
-      // Update your price cache
-      break;
-  }
-
-  res.json({ received: true });
+app.post("/tbook", express.raw({ type: "*/*" }), (req, res) => {
+  const event = tbook.webhooks.verify(req.body.toString(), req.header("X-TBook-Signature"));
+  queue.push(event);      // process async, keyed on event.id
+  res.sendStatus(200);
 });
 ```
 
-## Register Webhook
+Verification implements the `t=…,v1=…` HMAC scheme — details and a raw-Python equivalent in [Webhooks](/webhooks#verifying-signatures).
 
-```typescript
-const webhook = await tbook.webhooks.create({
-  url: "https://your-app.com/webhook",
-  events: [
-    "vault.deposit_epoch.settled",
-    "vault.redeem_epoch.settled",
-    "vault.price.updated",
-  ],
+## Typed API client
+
+```ts
+// Indicative 0.2.0 surface
+const account = await tbook.accounts.create({
+  externalId: "user-8492",
+  type: "individual",
+  custody: "waas",
+  wallets: [{ chain: "sui", address: "0x…" }],
+  compliance: { kyc: { attested: true, provider: "your-kyc", ref: "kyc_123" } },
 });
-// Save webhook.secret for verification
+
+const intent = await tbook.transactions.buildDeposit({
+  vaultId: "rcusdp-sui",
+  accountId: account.accountId,
+  amount: "100.00",
+  idempotencyKey: crypto.randomUUID(),
+});
 ```
 
-## Next Steps
-
-- [Webhook Events](/webhooks/event-types) — All event types and payloads
-- [Retry Policy](/webhooks/retry-policy) — How webhook delivery retries work
+Every method maps 1:1 to a [REST endpoint](/api-reference) and adds nothing the REST API cannot do.

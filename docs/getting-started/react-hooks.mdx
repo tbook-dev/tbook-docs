@@ -1,87 +1,33 @@
 ---
 title: React Hooks
-sidebar_position: 3
+sidebar_position: 8
 ---
 
 # React Hooks
 
-The React Hooks package provides a declarative interface for integrating TBook Vault into React applications.
+`@tbook-dev/vault-react` provides React Query–powered hooks and drop-in components over the client SDKs — positions, prices, and transaction flows without hand-rolled state management.
 
-## Install
-
-```bash
-npm install @tbook-dev/vault-react @tbook-dev/vault-sdk \
-  @solana/wallet-adapter-react @tanstack/react-query
-```
-
-## Setup Provider
+:::info SDK release status
+Ships at **0.2.0** with the v1 sandbox release. Surfaces shown are indicative until published; the [REST contract](/api-reference) is normative.
+:::
 
 ```tsx
-import { TBookVaultProvider } from "@tbook-dev/vault-react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// Indicative 0.2.0 surface
+import { TBookProvider, useAssets, usePositions, useDeposit } from "@tbook-dev/vault-react";
 
-const queryClient = new QueryClient();
+function Earn({ accountId }: { accountId: string }) {
+  const { data: assets } = useAssets();                      // GET /v1/assets
+  const { data: positions } = usePositions(accountId);      // GET /v1/accounts/:id/positions
+  const deposit = useDeposit();                              // build → sign → confirm
 
-function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ConnectionProvider endpoint="https://api.devnet.solana.com">
-        <WalletProvider wallets={[]} autoConnect>
-          <TBookVaultProvider network="devnet">
-            <YourApp />
-          </TBookVaultProvider>
-        </WalletProvider>
-      </ConnectionProvider>
-    </QueryClientProvider>
+    <button
+      onClick={() => deposit.mutate({ vaultId: "rcusdp-sui", accountId, amount: "100.00" })}
+    >
+      Deposit
+    </button>
   );
 }
 ```
 
-## Use Hooks
-
-```tsx
-import {
-  useVaultInfo,
-  useSharePrice,
-  useUserAccount,
-  useDeposit,
-  useRedeem,
-  useClaim,
-} from "@tbook-dev/vault-react";
-
-function DepositForm() {
-  const { data: vault } = useVaultInfo();
-  const { data: price } = useSharePrice();
-  const { data: user } = useUserAccount();
-  const deposit = useDeposit();
-
-  const handleDeposit = async () => {
-    const sig = await deposit.mutateAsync(100); // 100 USDC
-    console.log("Deposited!", sig);
-  };
-
-  return (
-    <div>
-      <p>APY: {price?.apy}%</p>
-      <p>Your shares: {user?.effectiveShares}</p>
-      <button onClick={handleDeposit} disabled={deposit.isPending}>
-        {deposit.isPending ? "Depositing..." : "Deposit 100 USDC"}
-      </button>
-    </div>
-  );
-}
-```
-
-## Available Hooks
-
-| Hook | Returns | Description |
-|------|---------|-------------|
-| `useVaultInfo()` | Vault state | TVL, epoch info, pause status |
-| `useSharePrice()` | Price data | Current share price and APY |
-| `useUserAccount()` | User balances | Shares, pending deposits/redeems, claimable USDC |
-| `useDeposit()` | Mutation | Build, sign, and submit a deposit transaction |
-| `useRedeem()` | Mutation | Build, sign, and submit a redeem transaction |
-| `useClaim()` | Mutation | Build, sign, and submit a claim transaction |
-
-All query hooks leverage `@tanstack/react-query` for caching, background refetching, and stale-while-revalidate behavior.
+Pre-built components (`DepositWidget`, `PortfolioCard`, `YieldBadge`, `TransactionHistory`) cover the common "Earn tab" UI — see [Use Cases](/overview/use-cases) for the patterns they implement.

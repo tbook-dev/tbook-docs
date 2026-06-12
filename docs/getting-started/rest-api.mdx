@@ -1,69 +1,26 @@
 ---
 title: REST API
-sidebar_position: 4
+sidebar_position: 6
 ---
 
 # REST API
 
-No SDK needed — integrate with any language or framework using standard HTTP calls.
+No SDK needed — the platform is fully integrable with plain HTTP from any language.
 
-## Base URL
-
-```
-https://api.tbook.com/v1
-```
-
-## Authentication
-
-Include your API key in every request:
-
-```
-Authorization: Bearer tbk_pub_YOUR_KEY
-```
-
-| Key Type | Prefix | Use Case |
-|----------|--------|----------|
-| Publishable | `tbk_pub_` | Frontend-safe, read + TX building |
-| Secret | `tbk_secret_` | Backend only, full access + webhooks |
-| Test | `tbk_test_` | Devnet sandbox, unlimited rate |
-
-## Example Requests
-
-### Get Vault Info
+| | |
+|---|---|
+| Sandbox | `https://sandbox.rwa-api.tbook.com/v1` |
+| Production | `https://rwa-api.tbook.com/v1` |
 
 ```bash
-curl https://api.tbook.com/v1/vaults/tbills-01 \
-  -H "Authorization: Bearer tbk_pub_YOUR_KEY"
+curl -H "Authorization: Bearer tbk_test_YOUR_KEY" \
+  https://sandbox.rwa-api.tbook.com/v1/assets
 ```
 
-### Get Share Price
+Start here:
 
-```bash
-curl https://api.tbook.com/v1/vaults/tbills-01/price \
-  -H "Authorization: Bearer tbk_pub_YOUR_KEY"
-```
+1. [Quickstart](/getting-started/quickstart) — the full loop in eight curl commands.
+2. [Conventions](/getting-started/conventions) — errors, idempotency, pagination, amounts.
+3. [API Reference](/api-reference) — every endpoint, field by field.
 
-### Build Deposit Transaction
-
-```bash
-curl -X POST https://api.tbook.com/v1/vaults/tbills-01/tx/deposit \
-  -H "Authorization: Bearer tbk_pub_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"user": "WALLET_PUBKEY", "amountUsdc": 100}'
-```
-
-Response:
-
-```json
-{
-  "transaction": "base58_encoded_unsigned_tx...",
-  "message": "Deposit 100 USDC into TBook Vault (Epoch #12)"
-}
-```
-
-Send the `transaction` string to your wallet or WaaS provider for signing and submission.
-
-## Next Steps
-
-- [API Reference](/api-reference) — Complete endpoint documentation with all request/response schemas
-- [Webhooks](/webhooks) — Subscribe to real-time vault events
+The only part HTTP cannot do alone is **signing**: build endpoints return unsigned transactions (`sui:tx-bytes-base64` or `solana:tx-base58`), which your WaaS provider, backend keypair, or multisig signs and submits. See [Transactions](/api-reference/transaction-endpoints) for the format.

@@ -3,8 +3,8 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'TBook Yield Layer',
-  tagline: 'Embedded RWA Yield Infrastructure for Fintechs',
+  title: 'TBook RWA Platform',
+  tagline: 'Embedded real-world-asset investing for fintechs — one API, webhooks, your keys',
   favicon: 'img/favicon.ico',
 
   future: {
@@ -41,12 +41,20 @@ const config: Config = {
   ],
 
   themeConfig: {
+    announcementBar: {
+      id: 'v1_draft_contract',
+      content:
+        'v1 Draft — Integration Contract under review. Contents are normative for the upcoming sandbox release; the API is not yet live. Feedback via your TBook contact.',
+      backgroundColor: '#fff8e6',
+      textColor: '#5c4400',
+      isCloseable: false,
+    },
     colorMode: {
       disableSwitch: true,
       defaultMode: 'light',
     },
     navbar: {
-      title: 'TBook Yield Layer',
+      title: 'TBook RWA Platform',
       items: [
         {
           type: 'docSidebar',

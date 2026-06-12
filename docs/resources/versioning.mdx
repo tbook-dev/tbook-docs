@@ -1,88 +1,48 @@
 ---
 title: Versioning
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 # Versioning
 
-## URL Prefix Versioning
+## URL prefix versioning
 
-All API endpoints are versioned via a URL prefix:
+All endpoints are versioned via the path:
 
 ```
-https://api.tbook.com/v1/vaults
-https://api.tbook.com/v2/vaults   (future)
+https://rwa-api.tbook.com/v1/assets
+https://rwa-api.tbook.com/v2/assets   (future)
 ```
 
-- **v1** is the current stable version.
-- New major versions (v2, v3, ...) are introduced when breaking changes are required.
-- Multiple API versions may be active simultaneously during transition periods.
+- **v1** is the current contract (see [Contract Status](/resources/changelog)).
+- New major versions are introduced only for breaking changes, with **at least 6 months** of overlap while both run.
 
-## Compatibility Promise
+## Compatibility promise
 
-### Within a Major Version (e.g. v1)
+Within a major version, changes are **additive only**:
 
-Changes within a major version are **additive only**:
+- New endpoints, new optional request fields, new query parameters.
+- New response fields.
+- New webhook event types.
+- New enum values on open enums (e.g. asset `type`).
 
-- New endpoints may be added.
-- New optional fields may be added to request and response bodies.
-- New optional query parameters may be added.
-- New webhook event types may be introduced.
-- New enum values may be added to existing fields.
+Never within a major version:
 
-The following changes are **never** made within a major version:
-
-- Removing or renaming existing endpoints.
-- Removing or renaming existing response fields.
+- Removing or renaming endpoints or response fields.
 - Changing the type or semantics of existing fields.
-- Making previously optional fields required.
-- Changing error codes for existing error conditions.
+- Making optional fields required.
+- Changing error codes for existing conditions.
 
-### Across Major Versions (e.g. v1 to v2)
+## Your obligations (forward compatibility)
 
-Breaking changes are only introduced in new major versions. When a new major version is released, the previous version enters a deprecation period.
+Because additive changes ship without notice, clients must parse leniently:
 
-## Deprecation Process
+- Ignore unknown response fields.
+- Never reject unknown enum values.
+- Route unknown webhook event types to a no-op handler.
 
-When a new major API version is released:
+See [Conventions](/getting-started/conventions#versioning--forward-compatibility).
 
-1. **Announcement**: A deprecation notice is published at least **6 months** before the old version is retired.
+## SDK versioning
 
-2. **Sunset Header**: All responses from the deprecated version include a `Sunset` HTTP header:
-
-   ```
-   Sunset: Sat, 01 Mar 2027 00:00:00 GMT
-   ```
-
-3. **Deprecation Header**: Responses also include `Deprecation: true`.
-
-4. **Migration Guide**: A detailed migration guide is published alongside the new version.
-
-5. **Retirement**: After the 6-month notice period, the deprecated version returns `410 Gone`.
-
-## SDK Versioning
-
-SDK packages follow [Semantic Versioning 2.0.0](https://semver.org/):
-
-```
-MAJOR.MINOR.PATCH
-```
-
-- **MAJOR**: Breaking changes to the public API surface.
-- **MINOR**: New features added in a backward-compatible manner.
-- **PATCH**: Bug fixes and performance improvements with no API changes.
-
-### SDK and API Version Mapping
-
-| SDK Version | API Version | Notes |
-|-------------|-------------|-------|
-| 0.x.x | v1 | Pre-release, API may shift |
-| 1.x.x | v1 | Stable release |
-| 2.x.x | v2 | Next major API version |
-
-## Best Practices
-
-1. **Pin SDK versions** using exact or tilde ranges (e.g. `~1.2.0`) to avoid unexpected breaking changes.
-2. **Monitor deprecation headers** in API responses and plan migrations promptly.
-3. **Subscribe to the changelog** for advance notice of upcoming changes.
-4. **Test against the latest SDK** in CI to catch compatibility issues early.
+SDK packages (`@tbook-dev/vault-sdk`, `@tbook-dev/vault-sdk-sui`, `@tbook-dev/vault-node`, `@tbook-dev/vault-react`) follow semver independently of the API version; each release documents the API contract version it targets.

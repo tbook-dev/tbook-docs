@@ -1,108 +1,74 @@
 ---
-title: Webhook Endpoints
-sidebar_position: 4
+title: Webhook Management
+sidebar_position: 8
 ---
 
-# Webhook Endpoints
+# Webhook Management
 
-Manage webhook subscriptions. All webhook endpoints require a `tbk_secret_*` API key.
+Manage webhook endpoints and read the event log. Secret key required. For payloads, signatures, and retry behavior, see the [Webhooks guide](/webhooks).
 
 ---
 
 ## POST /v1/webhooks
 
-Register a webhook endpoint.
-
 **Body:**
 
-```json
-{
-  "url": "https://your-app.com/webhook",
-  "events": ["vault.deposit_epoch.settled", "vault.price.updated"]
-}
-```
-
-**Response:**
+| Field | Notes |
+|---|---|
+| `url` | HTTPS only. Must resolve to a public address — private, link-local, and cloud-metadata IP ranges are rejected (`invalid_request`). |
+| `events[]` | Event names or wildcards: `["transaction.*", "vault.*"]`. See the [event catalog](/webhooks/event-types). |
 
 ```json
 {
-  "id": "wh_abc123",
-  "url": "https://your-app.com/webhook",
-  "events": ["vault.deposit_epoch.settled", "vault.price.updated"],
-  "secret": "whsec_abc123..."
+  "id": "wh_01h…",
+  "url": "https://your-server.example/tbook",
+  "events": ["transaction.*", "vault.*"],
+  "secret": "whsec_…"
 }
 ```
 
-Save the `secret` from the response — you need it to verify webhook signatures.
-
----
+**The `secret` is shown once.** Store it like a password — it verifies every delivery. Max 10 endpoints per organization.
 
 ## GET /v1/webhooks
 
-List registered webhooks (secrets are masked in the response).
-
----
+List endpoints (secrets masked).
 
 ## PATCH /v1/webhooks/:id
 
-Update a webhook's URL or subscribed events.
-
-**Body:**
-
-```json
-{
-  "url": "https://your-app.com/new-webhook",
-  "events": ["vault.deposit_epoch.settled", "vault.price.updated"]
-}
-```
-
-Both fields are optional — include only the fields you want to change.
-
-- `url` must use HTTPS.
-- `events` must be a non-empty array of valid event types (see [Event Types](/webhooks/event-types)).
-
-**Response:**
-
-```json
-{
-  "id": "wh_abc123",
-  "url": "https://your-app.com/new-webhook",
-  "events": ["vault.deposit_epoch.settled", "vault.price.updated"],
-  "createdAt": "2026-03-18T10:00:00.000Z"
-}
-```
-
----
-
-## POST /v1/webhooks/:id/rotate-secret
-
-Rotate the signing secret for a webhook. The previous secret remains valid for 24 hours to allow graceful migration.
-
-**Response:**
-
-```json
-{
-  "secret": "whsec_new_secret_here",
-  "previousSecretValidUntil": "2026-03-19T10:00:00.000Z"
-}
-```
-
----
+Update `url` and/or `events` — include only what changes.
 
 ## DELETE /v1/webhooks/:id
 
-Remove a webhook.
+Stop deliveries immediately.
+
+## POST /v1/webhooks/:id/rotate-secret
+
+Returns a new secret. The old secret stays valid for **24 hours in parallel** so you can roll your servers without dropping verification.
 
 ---
 
 ## GET /v1/events
 
-Poll for events (alternative to webhooks).
+Your organization's event log — also the **polling fallback** if your endpoint was down past the retry window.
 
-**Query params:**
+**Query:** `type=`, `from=`, `limit=`, `cursor=`.
 
-| Param | Description |
-|-------|-------------|
-| `after` | Event ID to start from |
-| `types` | Comma-separated event types to filter |
-| `limit` | Max events to return (default 50) |
+```json
+{
+  "data": [
+    {
+      "id": "evt_01h…",
+      "type": "transaction.deposit.settled",
+      "created": "2026-06-15T08:14:05Z",
+      "data": { "intentId": "txi_…", "accountId": "acct_…", "amount": "100.00" },
+      "deliveries": [
+        { "webhookId": "wh_01h…", "status": "delivered", "attempts": 1,
+          "lastAttemptAt": "2026-06-15T08:14:06Z" }
+      ]
+    }
+  ],
+  "nextCursor": null, "hasMore": false
+}
+```
+
+`deliveries[].status`: `delivered` · `retrying` · `failed`. Consume idempotently keyed on `event.id` — the same event can be delivered more than once.

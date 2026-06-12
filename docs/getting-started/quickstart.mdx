@@ -1,0 +1,150 @@
+---
+title: "Quickstart: first deposit in 30 minutes"
+sidebar_position: 2
+---
+
+# Quickstart
+
+This walkthrough takes you from an API key to a settled deposit with a webhook in hand, on sandbox, using the **Sui direct rail** (`rcusdp-sui`) and an `individual` account.
+
+**Prerequisites:** a sandbox key (`tbk_test_*`), a Sui testnet wallet address for your test user (any WaaS sandbox wallet or `sui client new-address ed25519`), and [test funds](/getting-started/test-funds).
+
+```bash
+export BASE="https://sandbox.rwa-api.tbook.com"
+export KEY="tbk_test_..."
+```
+
+## 1. Discover assets
+
+```bash
+curl -H "Authorization: Bearer $KEY" $BASE/v1/assets
+```
+
+The catalog is already filtered to assets enabled for your organization. Note `rcusdp` → `vaults[0].vaultId = "rcusdp-sui"`, settlement `T+1`, `minDeposit: "1"`.
+
+## 2. Create an account for your user
+
+```bash
+curl -X POST $BASE/v1/accounts \
+  -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalId": "user-8492",
+    "type": "individual",
+    "custody": "waas",
+    "wallets": [{"chain": "sui", "address": "0xYOUR_TEST_WALLET"}],
+    "compliance": {"kyc": {"attested": true, "provider": "sandbox-kyc", "ref": "kyc_demo"}}
+  }'
+```
+
+Response: `{"accountId": "acct_7f3a…", …}`. Export it: `export ACCT=acct_7f3a…`
+
+`externalId` is **your** identifier — TBook never needs your users' PII.
+
+## 3. Build an unsigned deposit
+
+```bash
+curl -X POST $BASE/v1/vaults/rcusdp-sui/tx/deposit \
+  -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"accountId": "'$ACCT'", "amount": "100.00"}'
+```
+
+Response:
+
+```json
+{
+  "intentId": "txi_01h…",
+  "vaultId": "rcusdp-sui",
+  "type": "deposit",
+  "chain": "sui",
+  "rail": "direct",
+  "transaction": { "format": "sui:tx-bytes-base64", "data": "AAAC…" },
+  "summary": { "amount": "100.00", "estimatedShares": "97.31", "sharePrice": "1.0275", "fees": "0.00" },
+  "expiresAt": "2026-06-15T08:10:00Z"
+}
+```
+
+Nothing has moved yet — `transaction.data` is unsigned.
+
+## 4. Sign and submit
+
+With a WaaS provider, pass `transaction.data` to its signing endpoint. With the Sui CLI/SDK for this walkthrough:
+
+```ts
+import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { Transaction } from "@mysten/sui/transactions";
+
+const client = new SuiClient({ url: getFullnodeUrl("testnet") });
+const tx = Transaction.from(Buffer.from(intent.transaction.data, "base64"));
+const result = await client.signAndExecuteTransaction({ signer: keypair, transaction: tx });
+console.log(result.digest);   // e.g. "8vJk…"
+```
+
+## 5. Report the digest (recommended)
+
+```bash
+curl -X POST $BASE/v1/transactions/txi_01h…/confirm \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"digest": "8vJk…"}'
+```
+
+The intent is now `submitted`; the indexer flips it to `confirmed` within about a minute even if you skip this step.
+
+## 6. Register a webhook
+
+```bash
+curl -X POST $BASE/v1/webhooks \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"url": "https://your-server.example/tbook", "events": ["transaction.*", "vault.*"]}'
+```
+
+Save the returned `secret` (`whsec_…`) — it is shown once. Verify every delivery; see [Webhook signatures](/webhooks#verifying-signatures).
+
+## 7. Trigger settlement (sandbox-only)
+
+In production the cycle settles on its own (T+1). On sandbox, settle on demand:
+
+```bash
+curl -X POST $BASE/v1/sandbox/settle \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"vaultId": "rcusdp-sui"}'
+```
+
+Within ~2 minutes your endpoint receives:
+
+```json
+{
+  "id": "evt_01h…",
+  "type": "transaction.deposit.settled",
+  "created": "2026-06-15T08:14:05Z",
+  "data": {
+    "intentId": "txi_01h…",
+    "accountId": "acct_7f3a…",
+    "externalId": "user-8492",
+    "vaultId": "rcusdp-sui",
+    "amount": "100.00",
+    "shares": "97.31",
+    "sharePrice": "1.0275",
+    "settlementCycle": 6
+  }
+}
+```
+
+## 8. Read back positions and earnings
+
+```bash
+curl -H "Authorization: Bearer $KEY" $BASE/v1/accounts/$ACCT/positions
+curl -H "Authorization: Bearer $KEY" "$BASE/v1/accounts/$ACCT/earnings?assetId=rcusdp"
+```
+
+You now have the full loop: catalog → account → build → sign → confirm → settle → webhook → positions.
+
+## Where to go next
+
+- **Redeem & claim:** `POST /v1/vaults/rcusdp-sui/tx/redeem` then, after settlement, `tx/claim` — see [Transactions](/api-reference/transaction-endpoints).
+- **Pick your real account model:** [Account Models](/overview/account-models) — this quickstart used `individual`; omnibus and treasury change who signs and who books.
+- **Handle every event:** [Webhook event catalog](/webhooks/event-types).
+- **Go deeper on conventions:** [idempotency, errors, pagination](/getting-started/conventions).

@@ -67,9 +67,9 @@ export default function FundFlowDiagram(): React.ReactElement {
         <path d="M 530,440 L 740,440" fill="none" stroke="#c4b5fd" strokeWidth="2.2" markerEnd="url(#mp)"/>
         <text className="edge ep" x="600" y="426">Shares</text>
 
-        {/* Vault -> RWA : Liquidate */}
-        <path d="M 900,440 L 1090,390" fill="none" stroke="#d3d8e0" strokeWidth="1.6" markerEnd="url(#md)" strokeDasharray="6 4"/>
-        <text className="edge" style={{fill:'#697386'}} x="950" y="426">Liquidate</text>
+        {/* Vault -> RWA : Liquidate (arc to T-Bills) */}
+        <path d="M 900,440 C 980,440 1050,300 1110,220" fill="none" stroke="#d3d8e0" strokeWidth="1.6" markerEnd="url(#md)" strokeDasharray="6 4"/>
+        <text className="edge" style={{fill:'#697386'}} x="950" y="380">Liquidate</text>
 
         {/* Vault -> Platform : USDC Returned (green return arc) */}
         <path d="M 770,370 C 740,320 620,320 500,370" fill="none" stroke="#86efac" strokeWidth="2.2" markerEnd="url(#mg)"/>
@@ -77,13 +77,16 @@ export default function FundFlowDiagram(): React.ReactElement {
 
         {/* === NAV ORACLE INFO FLOW === */}
 
-        {/* RWA -> NAV Oracle : Asset Valuation (dashed amber) */}
-        <path d="M 1230,150 L 1380,150" fill="none" stroke="#fbbf24" strokeWidth="1.8" strokeDasharray="7 5" markerEnd="url(#mi)"/>
-        <text className="edge ei" x="1258" y="136">Asset Valuation</text>
+        {/* RWA -> NAV Oracle : NAV Reporting (dashed amber) */}
+        <path d="M 1220,150 L 1400,150" fill="none" stroke="#fbbf24" strokeWidth="1.8" strokeDasharray="7 5" markerEnd="url(#mi)"/>
+        <text className="edge ei" x="1265" y="136">NAV Reporting</text>
 
-        {/* NAV Oracle -> Platform : Share Price (dashed amber, curved) */}
-        <path d="M 1420,220 C 1380,340 1000,510 500,490" fill="none" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="6 5" markerEnd="url(#mi)"/>
-        <text className="edge ei" x="1050" y="490">Share Price (for UI display)</text>
+        {/* NAV Oracle -> Vault : Share Price (wide arc below everything) */}
+        <path d="M 1460,220 C 1460,500 950,500 870,360" fill="none" stroke="#fbbf24" strokeWidth="1.6" strokeDasharray="6 5" markerEnd="url(#mi)"/>
+        <text className="edge ei" x="1200" y="490">Share Price</text>
+
+        {/* RWA zone label */}
+        <text className="sect" x="1100" y="80" fill="#0e9f6e">UNDERLYING ASSETS</text>
 
         {/* === NODES === */}
 
@@ -154,18 +157,17 @@ export default function FundFlowDiagram(): React.ReactElement {
           <line x1="1178" y1="200" x2="1178" y2="166" stroke="#0e9f6e" strokeWidth="1.3"/>
         </g>
         <text className="nm" x="1160" y="248" textAnchor="middle">US T-Bills</text>
-        <text className="ns" x="1160" y="268" textAnchor="middle">Primary Strategy</text>
+        <text className="ns" x="1160" y="268" textAnchor="middle">Institutional-grade MMF</text>
 
-        {/* Also available card */}
-        <rect x="1100" y="295" width="195" height="130" rx="12" fill="#fafdfb" stroke="#d1fae5" strokeWidth="1"/>
-        <text className="ns" x="1122" y="320" fontStyle="italic" fill="#6b7280">Also available:</text>
-        <circle cx="1122" cy="346" r="4.5" fill="#86efac"/>
-        <text className="ns" x="1136" y="350">Private Credit</text>
-        <circle cx="1122" cy="374" r="4.5" fill="#86efac"/>
-        <text className="ns" x="1136" y="378">Gold</text>
-        <circle cx="1122" cy="402" r="4.5" fill="#86efac"/>
-        <text className="ns" x="1136" y="406">More RWA strategies</text>
-        <line x1="1160" y1="270" x2="1160" y2="295" stroke="#d1fae5" strokeWidth="1" strokeDasharray="4 4"/>
+        <line x1="1160" y1="280" x2="1160" y2="300" stroke="#d1fae5" strokeWidth="1" strokeDasharray="4 4"/>
+
+        {/* More strategies card */}
+        <rect x="1088" y="300" width="145" height="100" rx="10" fill="#fafdfb" stroke="#d1fae5" strokeWidth="1"/>
+        <text className="ns" x="1108" y="325" fontStyle="italic" fill="#6b7280">More strategies:</text>
+        <circle cx="1108" cy="352" r="4" fill="#86efac"/>
+        <text className="ns" x="1120" y="356">Private Credit</text>
+        <circle cx="1108" cy="378" r="4" fill="#86efac"/>
+        <text className="ns" x="1120" y="382">{"Gold & Commodities"}</text>
 
         {/* NAV Oracle */}
         <g filter="url(#sh)">

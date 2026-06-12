@@ -1,54 +1,45 @@
 ---
-title: What is TBook Yield Layer
+title: What is the TBook RWA Platform
 sidebar_position: 1
 slug: /overview
 ---
 
-import FundFlowDiagram from '@site/src/components/FundFlowDiagram';
+# What is the TBook RWA Platform
 
-# What is TBook Yield Layer
+The TBook RWA Platform lets fintechs and corporates offer tokenized real-world-asset products — stablecoin yield, tokenized gold — to their users, or invest their own treasury, through **one REST API plus webhooks**.
 
-TBook Yield Layer is turnkey infrastructure that enables fintechs to offer RWA-backed yield to their customers — without building or managing any of the underlying investment infrastructure.
+You integrate once. Your users (or your treasury desk) deposit USDC, hold yield-bearing or asset-backed positions, and redeem on a published settlement schedule. You keep full control of the user experience and of signing keys: **TBook never holds funds or keys**. Every money movement is an unsigned transaction that the API builds and *your* wallet infrastructure signs.
 
-Your platform integrates once via SDK or REST API. Your customers deposit USDC, earn yield from real-world assets, and redeem anytime. You stay in control of the user experience and signing keys.
+## Core concepts
 
-## How Funds Flow
+| Concept | Meaning |
+|---|---|
+| **Organization** | The legal entity that contracts with TBook and owns API keys — a fintech, a corporate treasury client, an asset manager. Everything (accounts, webhooks, analytics, limits) is scoped to your organization through your API key. There is no `orgId` parameter anywhere: the key *is* the identity. |
+| **Account** | An investment principal under your organization. Four types — `individual`, `omnibus`, `treasury`, `business` — explained in [Account Models](/overview/account-models). Every position belongs to exactly one account. |
+| **Asset** | An RWA product: `rcusdp` (USD yield backed by tokenized T-bill / money-market strategies) or `xaua` (tokenized gold, 1 token = 1 gram). Assets are native on Sui. |
+| **Rail** | How funds reach the asset, determined by where the account's USDC lives: `sui:direct` (same chain, no bridge — the primary rail) or `solana:gateway` (Solana USDC routed through TBook's gateway program and Circle CCTP). |
+| **Vault** | An investable instance of an asset on a rail: `rcusdp-sui`, `rcusdp-sol`, `xaua-sui`. The API shape is identical on every rail; only settlement timing differs. |
+| **Transaction model** | Build → sign → submit → confirm. The API returns **unsigned** transactions; a wallet-as-a-service provider (e.g. Crossmint), your multisig, or your own keys sign and submit them. |
 
-<FundFlowDiagram />
+## Settlement is asynchronous
 
-## Multi-Strategy Architecture
+Deposits and redemptions are processed in **settlement cycles** (T+1 for rcUSDP, T+3 for XAUa). You never manage cycles — you observe them through `settlementCycle` fields and `vault.cycle.*` webhooks. Webhooks are the primary integration surface; no polling is required.
 
-TBook Yield Layer supports multiple RWA strategies — each strategy is deployed as an independent **Vault**. Your platform selects which vaults to offer based on your product needs and risk appetite.
+See [Core Flows](/resources/core-flows) for the normative lifecycle of every operation.
 
-Available strategy types include:
+## Key properties
 
-- **US Treasury Bills** — Short-duration government securities, institutional-grade yield
-- **Private Credit** — Higher-yield lending strategies with diversified credit exposure
-- **Gold** — Commodity-backed vaults for inflation hedging
-- **Additional strategies** — New RWA categories are added as the platform expands
+| Property | Description |
+|---|---|
+| **Non-custodial** | Unsigned-transaction API; your keys, your custody choices. Claims can only pay out to the account's own wallet — enforced on-chain. |
+| **Chain-agnostic by design** | Assets, rails, and funding currency are decoupled. New chains and assets slot into the same API without changing your integration. |
+| **Multisig protected** | Vault operations require multisig approval on both chains. |
+| **Audited** | The Sui rcUSDP vault contract is third-party audited (ScaleBit/MoveBit) and live on mainnet. |
+| **On-chain verifiable** | Vault state, share balances, and settlements are independently verifiable on-chain; contract addresses are exposed read-only in the API. |
 
-Each vault operates independently with its own epoch lifecycle, NAV oracle, and settlement cadence. This isolation ensures that risk is contained and settlement timing matches the underlying asset class.
+## Where to go next
 
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Non-custodial** | Your platform controls signing keys. TBook never holds customer funds directly. |
-| **Batch Settlement** | Deposits and redemptions are processed in batches (epochs), aligning on-chain settlement with off-chain RWA investment cycles. Settlement timing depends on the underlying asset. |
-| **Multisig Protected** | All vault operations require 2-of-3 multisig approval. |
-| **Third-party Audited** | Smart contracts audited by ScaleBit/MoveBit. |
-| **On-chain Verifiable** | All vault state, share balances, and settlements are verifiable on-chain. |
-
-## How It Works
-
-1. **Customers deposit USDC** via your platform's interface
-2. **Multisig approves** batch settlement (2-of-3 signers)
-3. **USDC is allocated** to the vault's RWA strategy (T-Bills, private credit, gold, and more)
-4. **Yield accrues** as the NAV appreciates — reflected automatically in share price
-5. **Redeem anytime** — batch settlement processes redemptions and returns USDC to customers
-
-## Next Steps
-
-- [How It Works](/overview/how-it-works) — Understand the epoch lifecycle and settlement process
-- [Getting Started](/getting-started) — Choose your integration path and start building
-- [API Reference](/api-reference) — Full endpoint documentation
+1. [Account Models](/overview/account-models) — pick the right structure for your product. **Read this first.**
+2. [How It Works](/overview/how-it-works) — assets, rails, and settlement cycles.
+3. [Quickstart](/getting-started/quickstart) — first deposit on sandbox in ~30 minutes.
+4. [API Reference](/api-reference) — every endpoint, field by field.

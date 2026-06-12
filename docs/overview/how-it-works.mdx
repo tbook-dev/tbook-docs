@@ -1,101 +1,74 @@
 ---
 title: How It Works
-sidebar_position: 2
+sidebar_position: 3
 ---
-
-import EpochLifecycleDiagram from '@site/src/components/EpochLifecycleDiagram';
 
 # How It Works
 
-## What is an Epoch?
+## Assets, rails, and vaults
 
-An **epoch** is a batch processing window that groups multiple customer deposits or redemptions into a single settlement cycle.
+The platform decouples three things that other systems hard-wire together:
 
-Epochs exist for two reasons:
-
-1. **RWA assets inherently require time for subscription and redemption.** T-Bills settle on a T+1 basis, private credit may take longer. Epochs align on-chain operations with off-chain asset settlement, ensuring your customers' funds are properly invested before shares are issued.
-
-2. **Batch processing is more cost-efficient and secure.** Aggregating multiple requests into a single batch reduces on-chain gas costs, enables more accurate NAV calculation across the entire batch, and allows multisig signers to review and approve all operations in one pass.
-
----
-
-## Epoch Lifecycle
-
-<EpochLifecycleDiagram />
-
----
-
-## Deposit Epoch Lifecycle
+- **Assets** — the RWA products themselves. `rcusdp` (USD yield from tokenized T-bill / money-market strategies) and `xaua` (tokenized gold) live natively on Sui.
+- **Rails** — the path from where your users' USDC sits to the asset.
+- **Vaults** — an asset made investable on a specific rail. One asset can have several vaults.
 
 ```
-Open → Frozen → Processing → Settled
-                            ↘ RolledBack
+                 ┌──────────────────────  Asset (native on Sui)  ─────────────────────┐
+                 │                                                                    │
+USDC on Sui ───────────► sui:direct rail ───────────► rcusdp-sui / xaua-sui           │
+                 │        (same chain, no bridge)                                     │
+                 │                                                                    │
+USDC on Solana ────────► solana:gateway rail ───────► rcusdp-sol                      │
+                 │        (gateway program + Circle CCTP,                             │
+                 │         bridging handled entirely by TBook)                        │
+                 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### States
+If your users hold USDC on Sui, deposits go **straight into the Sui vault — no bridge, no extra latency**. If they hold USDC on Solana, the gateway rail accepts the deposit on Solana and TBook operates the cross-chain leg invisibly. Your integration code is identical either way; only the `vaultId` and settlement timing differ.
 
-| State | Description | Recommended UI |
-|-------|-------------|----------------|
-| **Open** | Accepting deposits. Customers can submit new deposit requests. | Show "Deposit now" button. |
-| **Frozen** | No new deposits accepted. The batch is being prepared. | Show "Processing batch..." |
-| **Processing** | USDC is being allocated to RWA strategies. | Show "Processing deposit..." |
-| **Settled** | Shares have been minted and distributed to depositors. | Notify customers: "Your shares are ready!" |
-| **RolledBack** | Epoch cancelled. All USDC is returned to depositors. | Notify customers: "Your deposit has been returned." |
+New chains and new assets appear as new vault entries in the [asset catalog](/api-reference/vault-endpoints) — your integration does not change.
 
-### Webhooks
+## Settlement cycles
 
-- `vault.deposit_epoch.settled` — fired when shares are minted and distributed.
-- `vault.deposit_epoch.rolled_back` — fired when the epoch is cancelled and USDC is returned.
+Every vault settles in **cycles**. Requests accumulate while a cycle is `accepting`; at the cutoff the cycle closes and moves to `processing` (assets are deployed to, or withdrawn from, the underlying RWA strategy); when results are final the cycle **settles** and balances update.
 
----
+Cycles exist because real-world assets take real time to subscribe and redeem (T-bills settle T+1; gold subscription via the issuer settles T+3), and because batching makes settlement cheaper and easier to verify on-chain.
 
-## Redeem Epoch Lifecycle
+You never manage cycles. You observe them:
 
-```
-Open → Frozen → Settled
-              ↘ RolledBack
-```
+| Where | What you see |
+|---|---|
+| `GET /v1/vaults/:vaultId` | `currentCycle: {number, status: accepting \| processing, cutoffAt, expectedSettlementAt}` |
+| Positions & transactions | `settlementCycle` on every pending record and intent |
+| Webhooks | `vault.cycle.closed` → `vault.cycle.settled` (or `vault.cycle.rolled_back`), plus per-account `transaction.*.settled` events |
 
-The redeem lifecycle has **no Processing state** because redemption does not require allocating USDC to an external RWA strategy — the vault already holds the USDC needed for distribution.
+### What your user experiences
 
-### States
+| Action | Immediately | After the cycle settles |
+|---|---|---|
+| Deposit | "Processing — will settle T+1" (cancelable) | Shares credited; `transaction.deposit.settled` webhook with exact shares and price |
+| Redeem (queued) | "Processing redemption" | USDC claimable; `transaction.redeem.settled` webhook |
+| Claim | USDC arrives in the account's own wallet immediately | — |
+| Instant redeem (`rcusdp-sui` only) | USDC immediately, at a higher fee | — |
 
-| State | Description | Recommended UI |
-|-------|-------------|----------------|
-| **Open** | Accepting redeem requests. | Show "Redeem" button. |
-| **Frozen** | No new redeems accepted. Batch is being processed. | Show "Processing redemption..." |
-| **Settled** | USDC is ready for customers to claim. | Notify customers: "USDC ready to claim!" |
-| **RolledBack** | Epoch cancelled. Shares are returned. | Notify customers: "Your redeem request has been cancelled." |
+Timing per vault is published in the catalog (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`) — currently T+1 for rcUSDP vaults and T+3 for `xaua-sui` (cutoff 10:00 UTC).
 
-### Webhooks
+## The transaction model: build → sign → submit → confirm
 
-- `vault.redeem_epoch.settled` — fired when USDC is available for claiming.
-- `vault.redeem_epoch.rolled_back` — fired when the epoch is cancelled.
+1. **Build** — `POST /v1/vaults/:vaultId/tx/deposit` (or redeem/claim/cancel) returns an **unsigned** transaction plus an `intentId`.
+2. **Sign & submit** — your wallet infrastructure signs: a WaaS provider for `individual` accounts, your backend key for `omnibus`, a multisig flow for `treasury`/`business`. You submit to the chain RPC.
+3. **Confirm** — optionally report the digest back (`POST /v1/transactions/:intentId/confirm`) for instant status tracking; TBook's indexer also detects the transaction on-chain within about a minute either way.
+4. **Settle** — the settlement cycle completes and the intent reaches `settled`; webhooks notify you at each step.
 
----
+This is why the platform is non-custodial: TBook can *propose* transactions but can never execute them.
 
-## Lazy Settlement
+## Prices and yield
 
-Customers' pending deposits and redeems are **automatically settled on their next interaction** with the vault (deposit, redeem, or claim).
+Each asset's `price` is its NAV per share/unit, refreshed from the asset's NAV source and exposed in the catalog and `GET /v1/vaults/:vaultId/price`. For yield assets, `apy` is published alongside. Your users' earnings are computed from indexed history and live positions — see [Positions & Earnings](/api-reference/positions-earnings) for the exact formulas.
 
-- The SDK handles this transparently — no extra transactions needed.
-- `effectiveShares` and `effectiveClaimableUsdc` already include unsettled amounts, so your UI always shows the correct balances.
-- **Platforms don't need to implement anything** — just read the effective values from the SDK.
+## Next steps
 
----
-
-## Recommended UI States
-
-| Customer Action | Immediate UI | After Settlement | Webhook |
-|-----------------|-------------|-----------------|---------|
-| Deposit USDC | "Pending, processing..." | "Shares minted!" | `deposit_epoch.settled` |
-| Request Redeem | "Pending redemption" | "USDC ready to claim!" | `redeem_epoch.settled` |
-| Vault paused | Disable deposit/redeem buttons | Re-enable when unpaused | `vault.paused` / `vault.unpaused` |
-
----
-
-## Typical Timeline
-
-- **Deposit**: Submit deposit → batch settlement → shares available
-- **Redeem**: Submit redeem request → batch settlement → USDC claimable via `claim()`
-- Settlement timing depends on the underlying RWA strategy and the curator's processing frequency.
+- [Account Models](/overview/account-models) — who holds what
+- [Core Flows](/resources/core-flows) — normative semantics, including rollbacks and XAUa specifics
+- [Quickstart](/getting-started/quickstart) — run the full loop on sandbox

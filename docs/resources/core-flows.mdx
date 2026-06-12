@@ -1,0 +1,66 @@
+---
+title: Core Flows
+sidebar_position: 1
+---
+
+# Core Flows
+
+Normative semantics for every money movement. Field names and webhook types here are contractual.
+
+## Settlement cycles
+
+Every vault settles in **cycles**: requests accumulate while the cycle is `accepting`; at the cutoff it moves to `processing` (assets are deployed to or withdrawn from the underlying RWA strategy); when results are final the cycle **settles** and balances update. You never manage cycles — you observe `settlementCycle` fields, `currentCycle` on the vault, and `vault.cycle.*` webhooks.
+
+## Deposit — Sui direct rail (`rcusdp-sui`, `xaua-sui`)
+
+```
+build tx ──► user signs ──► pending record (cycle N, cancelable)
+        ──► cycle N settles (T+1 / T+3) ──► shares credited
+```
+
+1. `POST /v1/vaults/:vaultId/tx/deposit` → unsigned tx + `intentId`.
+2. Sign & submit; on-chain a pending record joins the current cycle. Intent: `confirmed`; webhook `transaction.deposit.confirmed`.
+3. While the cycle is `accepting`, the deposit is cancelable (`tx/cancel-deposit` with the `recordId` from positions).
+4. Cycle settles → shares credited at the cycle's `sharePrice`. Intent: `settled`; webhook `transaction.deposit.settled`.
+
+## Deposit — Solana gateway rail (`rcusdp-sol`)
+
+```
+build tx ──► user signs ──► USDC held by gateway (cycle N, cancelable, 0.1% cancel fee)
+        ──► cycle closes ──► TBook bridges & deposits into the Sui vault
+        ──► result mirrored back ──► shares credited (T+1~3 end-to-end)
+```
+
+Identical API. The cross-chain leg (Circle CCTP) is operated entirely by TBook and is invisible to you except in timing: `settlement.deposit` is `T+1~3`. Balances reported by the API are always current — the gateway settles user state lazily on-chain, but the API accounts for settled cycles immediately.
+
+## Redeem
+
+- **Queued (default, all vaults):** `tx/redeem {mode:"queued"}` locks shares into the current cycle → on settlement the proceeds become **claimable** (`transaction.redeem.settled`) → `tx/claim` pays the account's own wallet (`transaction.claim.confirmed`).
+- **Instant (`rcusdp-sui` only):** `tx/redeem {mode:"instant"}` pays USDC immediately at `instantRedeem.feeBps`. No cycle involved.
+
+`claim` always pays the account's **own wallet** — moving funds anywhere else is a [treasury withdrawal](/api-reference/treasury). Fiat off-ramping is your side of the integration.
+
+## XAUa specifics
+
+- A deposit on `xaua-sui` is a **gold subscription**: priced at the settlement cycle's NAV, settled T+3 business days, cycle cutoff **10:00 UTC** (requests after the cutoff join the next cycle).
+- Redemptions are likewise T+3; there is no instant path.
+- Wallets must be **whitelisted by the issuer** before transacting (`not_whitelisted` until then). Omnibus/treasury accounts need exactly one whitelisted wallet; individual mode requires the managed batch-whitelist flow — plan it with TBook.
+- XAUa is non-yield-bearing: P&L is gold price movement, reported by the same earnings endpoint.
+
+## Failures {#failures}
+
+| Failure | What happens | What you see |
+|---|---|---|
+| Unsigned tx expires before signing | nothing moved | intent → `expired`; rebuild with a new `Idempotency-Key` |
+| Transaction reverts on-chain | nothing moved | intent → `failed` with `failureReason` |
+| Cycle rolled back (operational abort) | deposited funds returned: in-wallet (direct rail) or claimable (gateway rail) | `vault.cycle.rolled_back` + per-account `transaction.deposit.cancelled (reason:"rollback")`. **Omnibus:** reverse your sub-ledger allocation using the amounts in the event |
+| Vault paused | no new deposits/redeems; **claims still work** | `vault.paused` / `vault.unpaused`; builds return `vault_paused` |
+| Your webhook endpoint down | deliveries retried 1m/5m/30m, then marked failed | catch up via [`GET /v1/events`](/webhooks/retry-policy#polling-fallback) |
+
+## Timing summary
+
+| Vault | Deposit | Redeem | Instant redeem | Cancel window |
+|---|---|---|---|---|
+| `rcusdp-sui` | T+1 | T+1 | yes (`feeBps` 700) | while cycle `accepting` |
+| `rcusdp-sol` | T+1~3 | T+1~3 | — | while cycle `accepting` (0.1% fee) |
+| `xaua-sui` | T+3 | T+3 | — | while cycle `accepting` (cutoff 10:00 UTC) |

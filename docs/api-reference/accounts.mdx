@@ -1,0 +1,104 @@
+---
+title: Accounts
+sidebar_position: 3
+---
+
+# Accounts
+
+An account is an investment principal under your organization — see [Account Models](/overview/account-models) for choosing between `individual`, `omnibus`, `treasury`, and `business`. All account endpoints require a **secret key**.
+
+## The Account object
+
+| Field | Type | Notes |
+|---|---|---|
+| `accountId` | string | `acct_…` |
+| `externalId` | string | **Your** identifier (user id, merchant id, ledger ref). Unique per organization, ≤128 chars, immutable. Never send PII. |
+| `type` | enum | `individual` · `omnibus` · `treasury` · `business` — **immutable** after creation |
+| `custody` | enum | `waas` · `self` · `org` — descriptive (who controls the wallet) |
+| `channel` | string? | Free-form analytics tag, ≤64 chars (e.g. `"mobile-app"`, `"merchant-treasury"`) |
+| `wallets[]` | object[] | `{chain, address, addedAt}` — max one per chain; addresses immutable once set |
+| `compliance` | object | `{kyc?: {attested, provider, ref, attestedAt}, kyb?: {…}}` — your attestation, see below |
+| `status` | enum | `active` · `frozen` (set by operations; blocks new transaction builds) |
+| `createdAt` | timestamp | |
+
+**Compliance rules:** `individual` and `omnibus` accounts need `compliance.kyc.attested: true` before their first deposit (`omnibus` = aggregate attestation for the pool). `business` accounts need `compliance.kyb`. `treasury` accounts need nothing per-account (your organization's KYB at onboarding covers them).
+
+---
+
+## POST /v1/accounts
+
+Create an account. Supports `Idempotency-Key`.
+
+**Body:**
+
+| Field | Required | Notes |
+|---|---|---|
+| `externalId` | yes | unique per organization |
+| `type` | yes | one of the four account types |
+| `custody` | yes | `waas` · `self` · `org` |
+| `wallets[]` | yes (≥1) | `{chain: "sui"\|"solana", address}` — address format validated per chain |
+| `channel` | no | analytics tag |
+| `compliance` | conditional | see compliance rules above |
+
+```bash
+curl -X POST $BASE/v1/accounts \
+  -H "Authorization: Bearer $KEY" -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalId": "user-8492",
+    "type": "individual",
+    "custody": "waas",
+    "wallets": [{"chain": "sui", "address": "0xabc…"}],
+    "compliance": {"kyc": {"attested": true, "provider": "your-kyc", "ref": "kyc_123"}}
+  }'
+```
+
+**Response `201`** — the Account object.
+
+**Errors:**
+
+| Code | When |
+|---|---|
+| `conflict` (409) | A wallet address is already bound to **any** account (yours or another organization's), or `externalId` already used |
+| `invalid_request` | Bad address format for the chain; missing required compliance attestation |
+
+---
+
+## GET /v1/accounts/:accountId
+
+Returns the Account object. `not_found` if it doesn't exist **or belongs to another organization**.
+
+## GET /v1/accounts (list / lookup)
+
+**Query:** `externalId=` (exact lookup) · `type=` · `channel=` · `limit=` · `cursor=`.
+
+```bash
+curl -H "Authorization: Bearer $KEY" "$BASE/v1/accounts?externalId=user-8492"
+```
+
+Paginated: `{data, nextCursor, hasMore}`.
+
+---
+
+## PATCH /v1/accounts/:accountId
+
+Supports `Idempotency-Key`. May:
+
+- **add a wallet** for a chain the account doesn't have yet (`wallets` is append-only per chain),
+- update `compliance`,
+- update `channel`.
+
+May **not** change `type`, `externalId`, or any existing address — these return `invalid_request`. Wallet migration is a managed operations flow; contact TBook.
+
+```bash
+# Add a Solana wallet to an existing Sui-only account
+curl -X PATCH $BASE/v1/accounts/acct_7f3a… \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"wallets": [{"chain": "solana", "address": "9xQe…"}]}'
+```
+
+---
+
+## Webhook
+
+`account.created` fires on creation with `{accountId, externalId, type}`.

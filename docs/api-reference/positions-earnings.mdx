@@ -1,0 +1,125 @@
+---
+title: Positions & Earnings
+sidebar_position: 5
+---
+
+# Positions, Earnings, History, Portfolio
+
+Account-scoped read endpoints. Secret key required. For `omnibus` accounts, everything on this page is **pool-level** — user-level detail lives in your ledger (see [Account Models](/overview/account-models#omnibus--many-end-users-pooled-in-one-wallet)).
+
+---
+
+## GET /v1/accounts/:id/positions
+
+Live holdings per vault. **Query:** `assetId=` (optional filter).
+
+```json
+{
+  "data": [
+    {
+      "assetId": "rcusdp",
+      "vaultId": "rcusdp-sui",
+      "shares": "97.31",
+      "sharePrice": "1.0275",
+      "value": "100.02",
+      "currency": "USDC",
+      "pending": {
+        "deposits": [
+          { "recordId": "42", "amount": "50.00", "settlementCycle": 6,
+            "cancelable": true, "submittedAt": "2026-06-15T08:02:11Z" }
+        ],
+        "redeems": [
+          { "recordId": "7", "shares": "10.00", "settlementCycle": 6,
+            "estimatedProceeds": "10.27" }
+        ]
+      },
+      "claimable": "0.00",
+      "asOf": "2026-06-15T08:15:00Z"
+    }
+  ]
+}
+```
+
+Notes:
+
+- **`pending.deposits[].recordId` is the cancel handle** for [`tx/cancel-deposit`](/api-reference/transaction-endpoints#cancel-deposit).
+- Sui-rail positions read on-chain records directly. Solana-rail positions already include settled-but-not-yet-touched balances (the gateway settles lazily on the user's next interaction; the API accounts for it so you never display stale numbers).
+- `value = shares × sharePrice`, in `currency`.
+
+---
+
+## GET /v1/accounts/:id/earnings
+
+**Query:** `assetId=` (required for v1).
+
+```json
+{
+  "assetId": "rcusdp",
+  "totalDeposited": "5000.00",
+  "totalRedeemed": "1000.00",
+  "netInvested": "4000.00",
+  "currentValue": "4210.55",
+  "profit": "210.55",
+  "profitRateBps": 526,
+  "totalFees": "1.20",
+  "asOf": "2026-06-15T08:15:00Z"
+}
+```
+
+**Definitions (normative):**
+
+- `netInvested = totalDeposited − totalRedeemed` (redeemed = claimed proceeds)
+- `currentValue = (shares + pendingRedeemShares) × sharePrice + pendingDepositAmount + claimable`
+- `profit = currentValue − netInvested`
+- `profitRateBps = profit / netInvested × 10⁴`
+- Fees are reported separately in `totalFees`, not netted out of `profit`.
+
+For commodity assets (XAUa) `profit` is price appreciation — there is no yield component.
+
+---
+
+## GET /v1/accounts/:id/transactions
+
+Indexer-backed history — the unified replacement for separate deposit/redemption/withdrawal history lists.
+
+**Query:** `type=deposit|redeem|claim|cancel` · `status=` ([intent statuses](/api-reference#transaction-intent-lifecycle)) · `vaultId=` · `from=` · `to=` · `limit=` · `cursor=`.
+
+```json
+{
+  "data": [
+    {
+      "id": "txi_01h…", "type": "deposit", "status": "settled",
+      "vaultId": "rcusdp-sui", "amount": "100.00", "shares": "97.31",
+      "settlementCycle": 5, "digest": "8vJk…",
+      "submittedAt": "…", "settledAt": "…", "source": "api"
+    },
+    {
+      "id": null, "type": "deposit", "status": "settled",
+      "vaultId": "rcusdp-sui", "amount": "25.00", "shares": "24.32",
+      "settlementCycle": 5, "digest": "3kPw…",
+      "submittedAt": "…", "settledAt": "…", "source": "chain"
+    }
+  ],
+  "nextCursor": "eyJ…", "hasMore": false
+}
+```
+
+`source: "chain"` rows are on-chain transactions from the account's registered wallet that were **not** built through the API — indexed and attributed anyway, with `id: null`. (On `omnibus` accounts these trigger a warning event, since pool wallets should only transact through the API.)
+
+---
+
+## GET /v1/accounts/:id/portfolio
+
+One call for an in-app dashboard:
+
+```json
+{
+  "totalValue": "4210.55",
+  "totalProfit": "210.55",
+  "currency": "USDC",
+  "positions": [
+    { "assetId": "rcusdp", "value": "3110.55", "profit": "190.55", "share": "0.74" },
+    { "assetId": "xaua",   "value": "1100.00", "profit": "20.00",  "share": "0.26" }
+  ]
+}
+```

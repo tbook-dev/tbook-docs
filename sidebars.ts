@@ -8,8 +8,10 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'overview/index',
+        'overview/account-models',
         'overview/how-it-works',
         'overview/security',
+        'overview/use-cases',
       ],
     },
     {
@@ -18,9 +20,13 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'getting-started/index',
+        'getting-started/quickstart',
+        'getting-started/authentication',
+        'getting-started/conventions',
+        'getting-started/test-funds',
+        'getting-started/rest-api',
         'getting-started/client-sdk',
         'getting-started/react-hooks',
-        'getting-started/rest-api',
         'getting-started/server-sdk',
       ],
     },
@@ -30,8 +36,13 @@ const sidebars: SidebarsConfig = {
       items: [
         'api-reference/index',
         'api-reference/vault-endpoints',
+        'api-reference/accounts',
         'api-reference/transaction-endpoints',
+        'api-reference/positions-earnings',
+        'api-reference/analytics',
+        'api-reference/treasury',
         'api-reference/webhook-endpoints',
+        'api-reference/sandbox',
       ],
     },
     {
@@ -47,9 +58,11 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Resources',
       items: [
+        'resources/core-flows',
+        'resources/onboarding-checklist',
         'resources/versioning',
-        'resources/migration',
         'resources/glossary',
+        'resources/changelog',
       ],
     },
   ],

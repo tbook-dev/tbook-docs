@@ -1,0 +1,53 @@
+---
+title: Authentication & API Keys
+sidebar_position: 3
+---
+
+# Authentication & API Keys
+
+Every request authenticates with an API key. **The key identifies your organization** — there is no `orgId` parameter anywhere in the API; all resources (accounts, webhooks, events, analytics) are automatically scoped to the organization that owns the key.
+
+## Sending the key
+
+```bash
+# Preferred
+curl -H "Authorization: Bearer tbk_secret_..." https://rwa-api.tbook.com/v1/accounts
+
+# Also accepted
+curl -H "x-api-key: tbk_secret_..." https://rwa-api.tbook.com/v1/accounts
+```
+
+## Key types
+
+| Key | Prefix | Where it lives | Access |
+|---|---|---|---|
+| Secret | `tbk_secret_` | Your servers only. Never in client code, repos, or logs. | Everything: accounts, transaction building, webhooks, treasury, analytics |
+| Publishable | `tbk_pub_` | May ship in client-side code | Read catalogs & prices, build transactions |
+| Test | `tbk_test_` | Sandbox only | Everything, sandbox only |
+
+Account data, webhook management, treasury controls, and analytics always require a **secret** key. Production keys never work on sandbox and vice versa.
+
+## Rate limits
+
+| Key | Limit |
+|---|---|
+| `tbk_secret_` | 1000 requests/min |
+| `tbk_pub_` | 100 requests/min |
+| `tbk_test_` | unlimited |
+
+Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; exceeding the limit returns `429` with a `Retry-After` header. Back off and retry — bursts are normal, sustained excess is not.
+
+## Issuance, rotation, revocation
+
+- Sandbox keys are issued during onboarding by your TBook contact; production keys after the [onboarding checklist](/resources/onboarding-checklist) is signed off.
+- Keys can be rotated at any time: a new key is issued, the old one keeps working for an agreed overlap window, then is revoked.
+- If a key is compromised, report it immediately — revocation is instant and all further requests with that key fail with `authentication_error`.
+
+TBook stores only a hash of each key. A lost key cannot be recovered, only replaced.
+
+## Errors
+
+| HTTP | Code | Meaning |
+|---|---|---|
+| 401 | `authentication_error` | Missing, malformed, revoked, or wrong-environment key |
+| 403 | `permission_denied` | Valid key, but this endpoint needs a secret key (or the resource requires different access) |

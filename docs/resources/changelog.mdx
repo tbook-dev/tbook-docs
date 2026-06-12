@@ -1,0 +1,27 @@
+---
+title: Contract Status & Changelog
+sidebar_position: 5
+---
+
+# Contract Status & Changelog
+
+This documentation is the **integration contract** for the TBook RWA API. Implementation follows the documentation: what is written here is what ships.
+
+| | |
+|---|---|
+| Contract version | **v1 — DRAFT** |
+| Status | Under review with design partners; field names, endpoints, and webhook types in this draft are normative for the upcoming sandbox release |
+| Sandbox availability | Announced to design partners when live |
+
+## Changelog
+
+### 2026-06-15 — v1 draft published
+
+- Initial publication of the v1 contract: account models (`individual` / `omnibus` / `treasury` / `business`), asset & vault catalog with rails, build–sign–submit–confirm transaction model, positions/earnings/portfolio, analytics, treasury controls, webhook catalog, sandbox endpoints.
+- Supersedes all previously published "Yield Layer" API descriptions on this site (single-vault routes, `pk_test_`/`sk_test_` key prefixes, epoch-named webhook events). Integrations should target this contract only.
+
+## How changes land
+
+- Changes to the contract are published here **before** they ship.
+- Within v1, changes are additive only — see [Versioning](/resources/versioning) and [forward compatibility](/getting-started/conventions#versioning--forward-compatibility).
+- Questions or feedback on the draft: through your TBook contact.

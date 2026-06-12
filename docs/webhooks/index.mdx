@@ -6,94 +6,85 @@ slug: /webhooks
 
 # Webhooks
 
-TBook sends webhook events when vault state changes. Use these to notify your customers about deposit settlements, redemption completions, and price updates.
+Webhooks are the primary integration surface: every settlement, every per-account transaction milestone, and every vault state change is pushed to your endpoint. Build your UX on webhooks, not polling — settlement is asynchronous (T+1/T+3) by nature.
 
 ## Setup
 
-### 1. Register a Webhook
+### 1. Register an endpoint
 
 ```bash
-curl -X POST https://api.tbook.com/v1/webhooks \
-  -H "Authorization: Bearer tbk_secret_YOUR_KEY" \
+curl -X POST $BASE/v1/webhooks \
+  -H "Authorization: Bearer $TBK_SECRET_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://your-app.com/webhook",
-    "events": [
-      "vault.deposit_epoch.settled",
-      "vault.redeem_epoch.settled",
-      "vault.price.updated"
-    ]
-  }'
+  -d '{"url": "https://your-server.example/tbook", "events": ["transaction.*", "vault.*"]}'
 ```
 
-Save the `secret` from the response — you need it to verify signatures.
+Save the returned `secret` (`whsec_…`) — it is shown once. Management endpoints: [Webhook Management](/api-reference/webhook-endpoints).
 
-### 2. Verify Signatures
+### 2. Verify every delivery {#verifying-signatures}
 
-Every webhook includes an `X-TBook-Signature` header:
+Each delivery carries:
 
 ```
-X-TBook-Signature: t=1679000000,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
+X-TBook-Signature: t=1718438045,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
 ```
 
-Verify with the server SDK:
+`v1 = HMAC_SHA256(secret, "<t>.<rawBody>")`. Reject if the comparison fails (use a timing-safe compare) or if `|now − t|` exceeds 5 minutes.
 
-```typescript
+**Node (`@tbook-dev/vault-node`):**
+
+```ts
 import { TBookVaultServer } from "@tbook-dev/vault-node";
 
-const tbook = new TBookVaultServer({
-  webhookSecret: "whsec_YOUR_SECRET",
+const tbook = new TBookVaultServer({ webhookSecret: process.env.WHSEC });
+app.post("/tbook", express.raw({ type: "*/*" }), (req, res) => {
+  const event = tbook.webhooks.verify(req.body.toString(), req.header("X-TBook-Signature"));
+  handle(event);          // do real work async
+  res.sendStatus(200);    // ack fast
 });
-
-const event = tbook.webhooks.verify(rawBody, signatureHeader);
 ```
 
-Or manually:
+**Python (raw):**
 
-```typescript
-import { createHmac } from "crypto";
+```python
+import hmac, hashlib, time
 
-const [tPart, v1Part] = signature.split(",");
-const timestamp = tPart.replace("t=", "");
-const expectedSig = v1Part.replace("v1=", "");
-
-const payload = `${timestamp}.${rawBody}`;
-const computed = createHmac("sha256", webhookSecret)
-  .update(payload)
-  .digest("hex");
-
-if (computed !== expectedSig) throw new Error("Invalid signature");
-if (Date.now() / 1000 - Number(timestamp) > 300) throw new Error("Timestamp too old");
+def verify(raw_body: bytes, header: str, secret: str) -> None:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    t, v1 = parts["t"], parts["v1"]
+    if abs(time.time() - int(t)) > 300:
+        raise ValueError("stale timestamp")
+    expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, v1):
+        raise ValueError("bad signature")
 ```
 
-### 3. Respond with 2xx
+Always verify against the **raw request body** — re-serializing JSON breaks the signature.
 
-Return any 2xx status to acknowledge receipt. Non-2xx triggers retries.
+### 3. Acknowledge fast, process async
 
-## Rotating Secrets
+Return 2xx as soon as the signature checks out; do the real work on a queue. Non-2xx (or a timeout) triggers [retries](/webhooks/retry-policy).
 
-You can rotate a webhook's signing secret at any time without downtime. The previous secret stays valid for 24 hours so your server can transition gracefully.
+## Payload envelope
 
-```bash
-curl -X POST https://api.tbook.com/v1/webhooks/wh_abc123/rotate-secret \
-  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
-```
-
-### Dual Verification During Rotation
-
-During the 24-hour grace period, verify incoming webhooks against the **new** secret first. If that fails, fall back to the **old** secret:
-
-```typescript
-function verifyWithFallback(
-  body: string,
-  signatureHeader: string,
-  newSecret: string,
-  oldSecret: string,
-): boolean {
-  if (verifyWebhookSignature(newSecret, signatureHeader, body)) return true;
-  // Fall back to old secret during grace period
-  return verifyWebhookSignature(oldSecret, signatureHeader, body);
+```json
+{
+  "id": "evt_01h…",
+  "type": "transaction.deposit.settled",
+  "created": "2026-06-15T08:14:05Z",
+  "data": { … }
 }
 ```
 
-After 24 hours the old secret expires and only the new secret will work. Update your stored secret as soon as you confirm the new one works.
+- **Consume idempotently keyed on `id`** — the same event can be delivered more than once.
+- Per-account events (`transaction.*`, `account.*`, `treasury.*`) are delivered **only to the organization that owns the account** and include your `externalId` so you can route without lookups.
+- New event types appear over time — route unknown `type`s to a no-op handler ([forward compatibility](/getting-started/conventions#versioning--forward-compatibility)).
+
+## Rotating secrets
+
+`POST /v1/webhooks/:id/rotate-secret` issues a new secret; the old one stays valid for 24 hours in parallel so you can roll servers without dropping verification.
+
+## Next
+
+- [Event catalog](/webhooks/event-types) — every event and its `data` fields
+- [Retry policy & polling fallback](/webhooks/retry-policy)

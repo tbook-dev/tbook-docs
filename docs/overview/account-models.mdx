@@ -1,0 +1,127 @@
+---
+title: Account Models
+sidebar_position: 2
+---
+
+# Account Models
+
+An **account** is the investment principal that holds positions under your organization. Choosing the right account model is the most important integration decision you will make, so read this page before writing any code.
+
+Every account model answers the same three questions differently:
+
+1. **Whose money is it?**
+2. **Who controls the wallet?**
+3. **Who keeps the user-level books?**
+
+All four models can coexist under one organization — many customers start with one and add others later.
+
+## At a glance
+
+| | `individual` | `omnibus` | `treasury` | `business` |
+|---|---|---|---|---|
+| Whose money | one end-user | many end-users, pooled | your organization itself | one corporate client of yours |
+| Wallet control | the user, via WaaS | your organization | your multisig | the client's multisig (or you) |
+| On-chain granularity | 1 wallet = 1 user | 1 wallet = whole pool | 1 wallet = org | 1 wallet = 1 client |
+| User-level books kept by | the chain (TBook indexes) | **your core ledger** | n/a | the chain (TBook indexes per client) |
+| TBook reports per | user | pool only | org | client |
+| Compliance attestation | KYC per account | aggregate KYC for the pool | org-level KYB | KYB per account |
+| XAUa whitelist surface | every user wallet | one pool wallet | one wallet | one wallet per client |
+| Withdrawal controls | — | — | allowlist + dual approval | allowlist + dual approval |
+| Counted in `analytics/users` | yes | no (pool is opaque) | no | yes |
+
+---
+
+## `individual` — one end-user, their own wallet
+
+**Whose money:** a single end-user's personal funds.
+
+**Wallet:** the user's own wallet, one per chain, typically provisioned through a wallet-as-a-service provider (Crossmint and Privy support both Sui and Solana). Custody attribute: `waas` (or `self` for power users who bring their own wallet).
+
+**How it works:** each user holds their own segregated on-chain position. The chain is the ledger — you keep no sub-ledger. TBook indexes per-user history, positions, and earnings automatically, and per-account webhooks carry your `externalId` so your app can update instantly.
+
+**Compliance:** you KYC the user and attest it on the account (`compliance.kyc`). Attestation is required before the first deposit. For XAUa, each user wallet must additionally be whitelisted by the asset issuer — a managed batch-onboarding flow (contact TBook); plan for this before offering gold to individual accounts.
+
+**If a settlement cycle is rolled back:** refunds land as claimable balance in the user's own wallet, and a per-user `transaction.deposit.cancelled` webhook (with `reason: "rollback"`) tells your app.
+
+**Choose when:** you want consumer-app yield with clean asset segregation. Regulators tend to like this model — every user can verify their own position on-chain.
+
+---
+
+## `omnibus` — many end-users, pooled in one wallet
+
+**Whose money:** many end-users, pooled. The account represents the pool, not a person.
+
+**Wallet:** one organization-controlled wallet (custody: `org`). On-chain there is a single position.
+
+**The ledger is yours.** User-level detail exists only in your core-banking ledger. Two rules make this work:
+
+1. **Keep your sub-ledger in vault shares, not fiat.** NAV movement then prices every user correctly — convert to display currency at the current `sharePrice` only at render time.
+2. **Maintain the invariant** that the sum of user shares in your ledger equals the on-chain pool position at all times.
+
+**Reconciliation:** run a daily job asserting the invariant. The API gives you share-precise positions, every settlement webhook carries the exact pool-level `{amount, shares, sharePrice}` (use it as your booking trigger), and the transactions history endpoint is your replay source. Any drift means a booking bug or an out-of-band transaction from the pool wallet — TBook also monitors omnibus wallets for transactions that did not originate from the API and emits a warning event. **Demonstrating this reconciliation is part of production sign-off.**
+
+**Compliance:** you attest aggregate KYC coverage for the pooled users. Your end-users' claim is against you, not against the chain — this must be reflected in your user disclosures. For XAUa, only the single pool wallet needs whitelisting, which makes omnibus the fastest way to offer gold.
+
+**If a settlement cycle is rolled back:** the refund lands as pool-level claimable balance, and **you must reverse the allocation in your sub-ledger**. The rollback webhook carries the exact pool amounts to reverse.
+
+**Choose when:** you want the fastest integration on top of an existing core ledger, or you want XAUa from day one.
+
+---
+
+## `treasury` — your organization's own funds
+
+**Whose money:** your own corporate funds (or your company's, if you are a corporate customer integrating directly).
+
+**Wallet:** organization-owned, typically a multisig (Squads on Solana, native multisig on Sui). Custody: `self`. The unsigned transactions returned by the API drop straight into your multisig proposal flow.
+
+:::note Multisig signing windows
+Unsigned transactions expire (~2 minutes on Solana due to blockhash validity, ~10 minutes on Sui). If your multisig quorum is slow, prefer the Sui rail or pre-coordinate signers before building the transaction.
+:::
+
+**Money-out controls (platform-enforced):**
+
+- `claim` can only pay the account's own wallet — an on-chain guarantee, not a policy.
+- Transfers to anywhere else go through [treasury withdrawals](/api-reference/treasury): destination must be on your **allowlist** (new addresses activate after a 24-hour timelock), and **dual approval** can be required (a second, different API key must approve each withdrawal).
+
+**Compliance:** KYB on your organization at onboarding; no per-account attestation.
+
+**Choose when:** corporate treasury management — park idle USDC into yield, or hold tokenized gold against FX exposure.
+
+---
+
+## `business` — two-tier: your corporate clients
+
+**Whose money:** a corporate **client of your organization**. Two-tier structure: your organization is TBook's customer; the business account belongs to *your* customer (e.g. each merchant on your platform).
+
+**Wallet:** one per business client — either their own multisig (custody: `self`) or managed by you (custody: `org`).
+
+**How it differs from omnibus:** each business client has its own account and wallet, so TBook indexes and reports **per client** — positions, earnings, history. You do not run a sub-ledger across clients. This is the structural reason a two-tier platform should prefer `business` accounts over pooling clients into one omnibus wallet.
+
+**Controls & compliance:** treasury-grade allowlist and dual-approval are available per account. You KYB each business client and attest it per account (`compliance.kyb`).
+
+**Choose when:** your platform serves merchants or corporates who each want their own treasury yield.
+
+---
+
+## Typical topologies
+
+```
+1. Consumer per-user           2. Consumer pooled              3. Corporate direct        4. Two-tier B2B
+Org: Fintech A                 Org: Fintech A                  Org: AcmeCorp              Org: Fintech A
+ ├ individual (user 1)          └ omnibus pool ◄── fintech's    └ treasury (multisig)      ├ business (merchant A)
+ ├ individual (user 2)            core ledger: user1|user2|…                               ├ business (merchant B)
+ └ individual (user N)                                                                     └ treasury (own float)
+```
+
+## Rules (enforced by the platform)
+
+- A wallet address binds to exactly **one account** — and therefore one organization. Reusing an address anywhere else returns `409 conflict`.
+- One address **per chain** per account. Addresses are immutable once set; wallet migration is a managed operations flow, not an API call.
+- Account `type` is immutable after creation.
+- Models coexist freely under one organization; use the `channel` tag for cross-cutting analytics dimensions.
+
+## Next steps
+
+- [Create accounts via the API](/api-reference/accounts)
+- [Quickstart](/getting-started/quickstart) — uses an `individual` account
+- [Treasury endpoints](/api-reference/treasury) — allowlist and dual approval

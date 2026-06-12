@@ -1,114 +1,103 @@
 ---
-title: Transaction Endpoints
-sidebar_position: 3
+title: Transactions
+sidebar_position: 4
 ---
 
-# Transaction Endpoints
+# Transactions
 
-All POST endpoints return an unsigned transaction. Sign it with your wallet or WaaS provider and submit to the network.
+Money movement follows **build → sign → submit → confirm**. Build endpoints return an **unsigned** transaction plus an `intentId`; your wallet infrastructure signs and submits; TBook's indexer tracks the result through to settlement (see the [intent lifecycle](/api-reference#transaction-intent-lifecycle)).
+
+All build endpoints: secret or publishable key · support `Idempotency-Key` · resolve `accountId` to the account's wallet on the vault's chain.
+
+**Common build-time errors:**
+
+| Code | When |
+|---|---|
+| `invalid_request` | Account has no wallet on the vault's chain |
+| `permission_denied` | Account is `frozen` |
+| `not_whitelisted` | XAUa: wallet not yet whitelisted by the issuer |
+| `vault_paused` | Vault not accepting this operation |
+| `cycle_closed` | Settlement cycle just closed for processing — retry shortly; the request lands in the next cycle |
+
+**Common response shape (all four build endpoints):**
+
+| Field | Type | Notes |
+|---|---|---|
+| `intentId` | string | track via lifecycle; appears in webhooks |
+| `vaultId`, `type`, `chain`, `rail` | string | echo (plus `settlementCycle` once known) |
+| `transaction.format` | enum | `sui:tx-bytes-base64` · `solana:tx-base58` |
+| `transaction.data` | string | the unsigned transaction — sign and submit **as-is** |
+| `summary` | object | human-checkable: amounts, `estimatedShares` / `estimatedProceeds`, `sharePrice`, `fees` |
+| `expiresAt` | timestamp | ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
 
 ---
 
 ## POST /v1/vaults/:vaultId/tx/deposit
 
-Build a deposit transaction.
+**Body:** `{accountId, amount}` — `amount` is a decimal string in the asset's `currency`, ≥ the vault's `minDeposit`.
 
-**Path params:** `vaultId` — Vault identifier
-
-**Body:**
+On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's NAV.
 
 ```json
 {
-  "user": "WALLET_PUBKEY",
-  "amountUsdc": 100
+  "intentId": "txi_01h…",
+  "vaultId": "rcusdp-sui", "type": "deposit", "chain": "sui", "rail": "direct",
+  "transaction": { "format": "sui:tx-bytes-base64", "data": "AAAC…" },
+  "summary": { "amount": "100.00", "estimatedShares": "97.31", "sharePrice": "1.0275", "fees": "0.00" },
+  "expiresAt": "2026-06-15T08:10:00Z"
 }
 ```
 
-**Response:**
-
-```json
-{
-  "transaction": "base58_encoded_unsigned_transaction",
-  "message": "Deposit 100 USDC into TBook Vault (Epoch #2)"
-}
-```
-
----
+**Extra errors:** `below_min_deposit`.
 
 ## POST /v1/vaults/:vaultId/tx/redeem
 
-Build a redeem (request withdrawal) transaction.
+**Body:** `{accountId, shares, mode}` — `shares` decimal string; `mode` is `"queued"` (default) or `"instant"`.
 
-**Path params:** `vaultId` — Vault identifier
+- **Queued** — enters the settlement cycle; proceeds become claimable on settlement (`transaction.redeem.settled`).
+- **Instant** — only where the catalog shows `settlement.instantRedeem.available`; pays USDC immediately at `instantRedeem.feeBps`. `summary.estimatedProceeds` reflects the fee.
 
-**Body:**
-
-```json
-{
-  "user": "WALLET_PUBKEY",
-  "shares": 50
-}
-```
-
-**Response:**
-
-```json
-{
-  "transaction": "base58_encoded_unsigned_transaction",
-  "message": "Redeem 50 shares from TBook Vault (Epoch #2)"
-}
-```
-
----
+**Extra errors:** `insufficient_shares`; `invalid_request` if `mode:"instant"` is unsupported on this vault.
 
 ## POST /v1/vaults/:vaultId/tx/claim
 
-Build a claim transaction (withdraw settled USDC).
+**Body:** `{accountId}`. Builds a claim of the account's **entire claimable balance**, paid to the account's **own wallet** — an on-chain guarantee. Claim works even when a vault is paused.
 
-**Path params:** `vaultId` — Vault identifier
+**Extra errors:** `insufficient_balance` (nothing claimable).
 
-**Body:**
+## POST /v1/vaults/:vaultId/tx/cancel-deposit {#cancel-deposit}
+
+**Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings). Allowed only while that record's cycle is still `accepting`. `rcusdp-sol` charges `cancelFeeBps` (0.1%).
+
+**Extra errors:** `not_found` (unknown record), `cycle_closed` (already processing).
+
+---
+
+## POST /v1/transactions/:intentId/confirm
+
+Report the chain result after you submit:
+
+**Body:** `{digest}` (Sui) or `{signature}` (Solana).
+
+Optional but recommended: the intent flips to `submitted` instantly and webhook correlation is exact. If you skip it, the indexer matches the transaction heuristically within about a minute.
+
+**Errors:** `not_found`; `conflict` if the digest is already bound to a different intent.
+
+## GET /v1/transactions/:intentId
 
 ```json
 {
-  "user": "WALLET_PUBKEY"
-}
-```
-
-**Response:**
-
-```json
-{
-  "transaction": "base58_encoded_unsigned_transaction",
-  "message": "Claim settled USDC from TBook Vault"
+  "intentId": "txi_01h…", "status": "settled", "type": "deposit",
+  "vaultId": "rcusdp-sui", "accountId": "acct_7f3a…",
+  "amount": "100.00", "shares": "97.31", "fees": "0.00", "settlementCycle": 6,
+  "digest": "8vJk…",
+  "createdAt": "…", "submittedAt": "…", "confirmedAt": "…", "settledAt": "…",
+  "failureReason": null
 }
 ```
 
 ---
 
-## POST /v1/vaults/:vaultId/tx/cancel-deposit
+## Webhooks
 
-Cancel a pending deposit (0.1% fee applies).
-
-**Path params:** `vaultId` — Vault identifier
-
-**Body:**
-
-```json
-{
-  "user": "WALLET_PUBKEY"
-}
-```
-
-**Response:**
-
-```json
-{
-  "transaction": "base58_encoded_unsigned_transaction",
-  "message": "Cancel pending deposit (0.1% fee)"
-}
-```
-
-:::info
-Cancellation is only possible while the deposit epoch is in the **Open** state. Once the epoch is frozen, deposits cannot be cancelled.
-:::
+`transaction.deposit.confirmed` → `transaction.deposit.settled` (or `.cancelled`), `transaction.redeem.confirmed` → `transaction.redeem.settled`, `transaction.claim.confirmed`. Full catalog: [Webhook events](/webhooks/event-types).

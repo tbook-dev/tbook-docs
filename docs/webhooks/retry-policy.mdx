@@ -1,41 +1,37 @@
 ---
-title: Retry Policy
+title: Retry Policy & Polling Fallback
 sidebar_position: 3
 ---
 
-# Retry Policy
+# Retry Policy & Polling Fallback
 
-## Delivery Behavior
+## Delivery behavior
 
-| Response | Behavior |
-|----------|----------|
-| 2xx | Success, no retry |
-| 4xx | Client error, no retry |
-| 5xx or timeout | Retry 3 times: 1 min, 5 min, 30 min |
+| Your response | Behavior |
+|---|---|
+| 2xx | Delivered — no retry |
+| 4xx | Treated as permanent rejection of this delivery — no retry |
+| 5xx or timeout (10 s) | Retried |
 
-## Event Retention
+**Retry schedule:** 1 minute → 5 minutes → 30 minutes after the initial attempt. After the final failure the delivery is marked `failed` and surfaces in [`GET /v1/events`](/api-reference/webhook-endpoints#get-v1events) (`deliveries[].status`).
 
-The last 1,000 events are retained. If your webhook endpoint was down for an extended period, you can recover missed events using the polling API.
+Each delivery (including retries) is signed with a fresh timestamp, so signature verification keeps working.
 
-## Event Polling (Alternative)
+## Polling fallback
 
-If you prefer polling over webhooks, or need to catch up on missed events:
-
-```bash
-curl "https://api.tbook.com/v1/events?types=vault.deposit_epoch.settled&limit=10" \
-  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
-```
-
-Store the last event ID and pass it as `after` on the next poll:
+`GET /v1/events` is the catch-up mechanism — your organization's full event log with per-endpoint delivery status:
 
 ```bash
-curl "https://api.tbook.com/v1/events?after=evt_abc123&limit=50" \
-  -H "Authorization: Bearer tbk_secret_YOUR_KEY"
+curl "$BASE/v1/events?type=transaction.deposit.settled&limit=50" \
+  -H "Authorization: Bearer $TBK_SECRET_KEY"
 ```
 
-## Best Practices
+Recommended pattern: persist the last processed `evt_` id; on webhook gaps (deploys, outages), page through `/v1/events` until you are caught up. Events are retained for 30 days.
 
-- **Respond quickly** — Return a 2xx response as soon as you receive the webhook. Process the event asynchronously if needed.
-- **Handle duplicates** — In rare cases, the same event may be delivered more than once. Use the event ID for idempotency.
-- **Monitor your endpoint** — Set up alerting for webhook delivery failures so you can address issues promptly.
-- **Use polling as a fallback** — Even with webhooks, consider periodic polling to catch any events that may have been missed.
+## Best practices
+
+- **Ack fast, process async** — verify the signature, enqueue, return 200. Avoid doing chain reads or DB writes inline.
+- **Idempotent consumption** — key processing on `event.id`; duplicates are possible by design.
+- **Don't depend on ordering** — events usually arrive in order but it is not guaranteed; per-account state should be derived from the event's own fields (each `settled` event carries its full context), not from sequence assumptions.
+- **Alert on failures** — watch your own 5xx rate and poll `GET /v1/events` for `deliveries[].status = "failed"`.
+- **Keep one endpoint per environment** — sandbox and production events never mix; use separate URLs and secrets.

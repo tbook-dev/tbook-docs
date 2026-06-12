@@ -1,0 +1,75 @@
+---
+title: Analytics
+sidebar_position: 6
+---
+
+# Analytics
+
+Aggregate endpoints for **your** dashboard — user growth, AUM, yield, and flows across your organization. Secret key required.
+
+Analytics return **aggregates only, never user lists** — your users' identities stay in your systems. `omnibus` pools are opaque by design: they are excluded from user counts (the API reports this honestly rather than inventing numbers) and appear as single positions in AUM.
+
+Common query parameters: `from=`, `to=` (ISO dates, ranges ≤366 days), `granularity=day|week|month` (default `day`).
+
+---
+
+## GET /v1/analytics/users
+
+User-count time series. Counts `individual` and `business` accounts.
+
+```json
+{
+  "data": [
+    { "period": "2026-06-01", "registered": 120, "firstDeposit": 80, "active": 300 }
+  ]
+}
+```
+
+`registered` = accounts created in the period · `firstDeposit` = accounts whose first-ever deposit settled in the period · `active` = accounts with ≥1 settled transaction in the period.
+
+## GET /v1/analytics/aum
+
+Assets under management snapshot. **Query:** `groupBy=asset|chain|channel|accountType`, `at=` (date; defaults to the latest daily snapshot).
+
+```json
+{
+  "asOf": "2026-06-15",
+  "total": "1250000.00",
+  "currency": "USDC",
+  "breakdown": [
+    { "key": "rcusdp", "value": "1100000.00", "share": "0.88" },
+    { "key": "xaua",   "value": "150000.00",  "share": "0.12" }
+  ]
+}
+```
+
+## GET /v1/analytics/yield
+
+Accrued profit and weighted APY per group. **Query:** `groupBy=asset|channel`, `from=`, `to=`.
+
+```json
+{
+  "data": [
+    { "key": "rcusdp", "accruedProfit": "8210.55", "weightedApy": "8.31", "avgAum": "1080000.00" }
+  ]
+}
+```
+
+## GET /v1/analytics/flows
+
+Deposit/redemption volume time series.
+
+```json
+{
+  "data": [
+    { "period": "2026-06-14", "deposits": "50000.00", "redemptions": "12000.00",
+      "net": "38000.00", "depositCount": 420, "redeemCount": 80 }
+  ]
+}
+```
+
+---
+
+:::note Data freshness
+AUM and yield are computed from daily position snapshots; users and flows from the live transaction index. All analytics may lag real time by a few minutes.
+:::

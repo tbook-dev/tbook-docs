@@ -1,0 +1,34 @@
+---
+title: Onboarding Checklist
+sidebar_position: 2
+---
+
+# Onboarding Checklist
+
+The path from first sandbox call to production keys. Your TBook contact tracks this with you.
+
+## Sandbox phase
+
+- [ ] **Keys received** — `tbk_test_*` issued; you can call `GET /v1/assets`.
+- [ ] **Account model chosen** — `individual` / `omnibus` / `treasury` / `business` per product line ([guide](/overview/account-models)); custody approach confirmed (WaaS provider, backend keys, or multisig).
+- [ ] **Quickstart completed** — full deposit → settle → webhook → positions loop on `rcusdp-sui` ([Quickstart](/getting-started/quickstart)).
+- [ ] **Webhook endpoint live** — signature verification passing (we will send a test event), idempotent consumption keyed on `event.id`.
+- [ ] **Full cycle on your integration** — deposit, queued redeem, claim, and cancel-deposit executed through *your* code, not curl.
+- [ ] **Error handling reviewed** — `cycle_closed` retry, `expiresAt` rebuild, idempotency keys on all money movements.
+- [ ] **Omnibus only:** reconciliation demonstrated — your sub-ledger total equals the pool position across two settlement cycles, including a simulated rollback reversal.
+- [ ] **Treasury/business only:** allowlist + (if enabled) dual-approval flow exercised; multisig signing within `expiresAt` confirmed.
+- [ ] **XAUa only:** whitelist process agreed (pool/treasury wallet whitelisted, or individual batch flow scheduled).
+
+## Production phase
+
+- [ ] **Compliance docs exchanged** — organization KYB, attestation process for your account types, user-disclosure language (omnibus).
+- [ ] **Production keys issued** — stored in your secrets manager; never in code or logs.
+- [ ] **Webhook endpoint(s) for production** — separate URL + secret from sandbox.
+- [ ] **Deposit caps agreed** — initial per-organization caps and the raise schedule.
+- [ ] **Go-live** — first production deposit witnessed end-to-end with your TBook contact; hypercare channel open.
+
+## After go-live
+
+- Monitor `GET /v1/events` for failed deliveries and your reconciliation job (omnibus).
+- New assets appear in your catalog when enabled for your organization — no code change needed.
+- Production support and escalation paths are in your onboarding pack.

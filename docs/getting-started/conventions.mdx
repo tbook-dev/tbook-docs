@@ -1,0 +1,78 @@
+---
+title: API Conventions
+sidebar_position: 4
+---
+
+# API Conventions
+
+Five minutes here prevents most integration bugs. These rules apply to every endpoint.
+
+## Errors
+
+Non-2xx responses always carry the same envelope:
+
+```json
+{
+  "error": {
+    "code": "below_min_deposit",
+    "message": "Minimum deposit for rcusdp-sui is 1 USDC.",
+    "requestId": "req_01h2x…"
+  }
+}
+```
+
+Quote `requestId` in support requests. Error codes:
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `invalid_request` | 400 | Malformed body, unknown field value, violated constraint |
+| `authentication_error` | 401 | Bad/missing/revoked key |
+| `permission_denied` | 403 | Key type or account state forbids this action (e.g. frozen account, approver = creator) |
+| `not_found` | 404 | Resource doesn't exist **or belongs to another organization** |
+| `conflict` | 409 | Uniqueness violated (wallet already bound, externalId taken, digest already linked) |
+| `idempotency_conflict` | 409 | Same `Idempotency-Key`, different request body |
+| `rate_limited` | 429 | Slow down; honor `Retry-After` |
+| `vault_paused` | 422 | Vault not accepting this operation right now |
+| `below_min_deposit` | 422 | Amount under the vault's `minDeposit` |
+| `cycle_closed` | 422 | Current settlement cycle just closed for processing — retry shortly; the request lands in the next cycle |
+| `insufficient_balance` | 422 | Nothing claimable / not enough USDC |
+| `insufficient_shares` | 422 | Redeem amount exceeds available shares |
+| `not_whitelisted` | 422 | XAUa: wallet not yet whitelisted by the issuer |
+| `internal_error` | 500 | Our fault; safe to retry with the same idempotency key |
+
+## Idempotency
+
+Every money-movement POST accepts an `Idempotency-Key` header (any unique string ≤255 chars; UUIDs recommended):
+
+- Same key + same body → the original response is replayed (no duplicate effect).
+- Same key + different body → `409 idempotency_conflict`.
+- Keys expire after 24 hours.
+
+Use it on: all `tx/*` builds, account creation, treasury withdrawals, webhook registration. If a build's transaction **expires unsigned**, rebuild with a **new** key — the old intent simply expires harmlessly.
+
+## Amounts
+
+All monetary values are **decimal strings** (`"100.50"`), never floats, with explicit `currency`/`asset` context. Shares use the same convention. Parse with a decimal library, not `parseFloat`.
+
+## Pagination
+
+List endpoints take `?limit=` (max 100, default 20) and `?cursor=`:
+
+```json
+{ "data": [ … ], "nextCursor": "eyJpZCI6…", "hasMore": true }
+```
+
+Pass `nextCursor` back verbatim. Cursors are opaque and expire after 24 hours.
+
+## Timestamps & IDs
+
+Timestamps are ISO-8601 UTC (`2026-06-15T08:14:05Z`). IDs carry type prefixes: `acct_`, `txi_` (transaction intent), `al_` (allowlist entry), `twd_` (treasury withdrawal), `wh_` (webhook), `evt_` (event), `req_` (request id in errors).
+
+## Versioning & forward compatibility
+
+- The API is versioned by path: `/v1`. Breaking changes mean `/v2` with at least 6 months of overlap.
+- **Additive changes happen at any time without notice**: new fields, new webhook event types, new enum values (e.g. new asset `type`s as the catalog grows). Parse leniently — ignore unknown fields, never reject unknown enum values, and route unknown webhook event types to a no-op handler.
+
+## Environments
+
+Sandbox (`sandbox.rwa-api.tbook.com`) and production (`rwa-api.tbook.com`) are wire-compatible. Sandbox adds two extra endpoints under [`/v1/sandbox/*`](/api-reference/sandbox) that do not exist in production.

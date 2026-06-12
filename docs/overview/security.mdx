@@ -1,60 +1,48 @@
 ---
 title: Security & Trust
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 # Security & Trust
 
-TBook Yield Layer is designed with security as a foundational principle. Every layer of the system — from smart contracts to operational processes — is built to protect customer funds.
+Security is layered through the platform — from smart contracts to API design to operational process.
 
-## Multi-Signature Custody
+## Non-custodial by construction
 
-All vault operations require **2-of-3 multisig** approval. No single party can unilaterally move funds or modify vault parameters.
+- **TBook never holds keys or funds.** The API only ever returns *unsigned* transactions; signing happens in your wallet infrastructure (WaaS, your backend, or your multisig).
+- **Claims can only pay the account's own wallet.** This is enforced by the vault contracts, not by policy.
+- **Transfers to third-party addresses** (treasury withdrawals) require an allowlisted destination with a 24-hour activation timelock, and optionally dual approval by two different API keys.
 
-- Deposit epoch settlement requires multisig authorization
-- Redeem epoch settlement requires multisig authorization
-- Vault configuration changes require multisig authorization
+## Multi-signature operations
 
-## Role Separation
-
-The vault enforces strict role separation to minimize risk:
+All vault operations on both chains require multisig approval (2-of-3 on the operational roles). No single party can move funds or change vault parameters unilaterally.
 
 | Role | Permissions | Purpose |
 |------|-------------|---------|
-| **Admin** | Update vault configuration, pause/unpause | System governance |
-| **Curator** | Freeze epochs, trigger settlements | Day-to-day operations |
-| **Operator** | Execute settlement transactions | Transaction execution |
+| **Authority** | Configuration, pause/unpause, role rotation | Governance |
+| **Curator** | Sensitive settlement steps (bridging, settlement reporting) | Cross-chain operations |
+| **Operator** | Routine cycle operations | Day-to-day processing |
 
-No single role has complete control over the vault. Critical operations require coordination between multiple roles.
+## Audited contracts
 
-## Third-party Audited
+The Sui rcUSDP vault contract is independently audited by **ScaleBit/MoveBit** and has been live on Sui mainnet in production. Audit scope covered contract logic and state management, access control, fund-flow and accounting integrity, and edge-case behavior. Additional rails and assets go through the same gate before production exposure: the Solana gateway program and the XAUa AlphaVault each require their own audit before mainnet launch.
 
-The TBook Vault smart contracts have been independently audited by **ScaleBit/MoveBit**, a leading blockchain security firm. The audit covered:
+## API-level protections
 
-- Smart contract logic and state management
-- Access control and authorization
-- Fund flow and accounting integrity
-- Edge cases and potential attack vectors
+- **Hashed API keys** with organization-scoped tenancy on every resource — one organization can never read another's accounts, webhooks, or events.
+- **Idempotency keys** on all money-movement endpoints prevent duplicate submissions.
+- **Webhook signatures** (HMAC-SHA256 with timestamp) let you verify every delivery; see [Webhooks](/webhooks).
+- **Rate limiting** per key, with explicit headers.
 
-## 24-Hour Timelock Protection
+## Pause & rollback safety
 
-Critical vault parameter changes are subject to a **24-hour timelock**. This provides a window for stakeholders to review and, if necessary, intervene before changes take effect.
+- Vaults can be paused by multisig: new deposits/redemptions stop, but **claims always work** — paused funds are never trapped.
+- If a settlement cycle must be aborted, it is rolled back: deposited funds return as claimable balances in depositors' own wallets, and webhooks notify every affected account. See [Core Flows](/resources/core-flows#failures).
 
-## On-chain Verifiable
+## On-chain verifiability
 
-All vault state is stored on-chain and publicly verifiable:
+All vault state is public and verifiable: total shares, vault balances, share-price history, every cycle settlement, and individual holdings. The API exposes the underlying contract addresses (read-only) in every vault detail response so you — or your auditors — can verify independently.
 
-- **Total shares outstanding** — verify the total supply at any time
-- **Vault USDC balance** — confirm funds held in the vault
-- **Share price history** — track NAV updates over time
-- **Epoch settlements** — audit every deposit and redeem batch
-- **User balances** — verify individual share holdings
+## 24-hour timelocks
 
-## Non-custodial Architecture
-
-TBook Yield Layer is non-custodial by design:
-
-- **Platforms control their own signing keys** — TBook never has access to customer wallets
-- **Customer funds flow directly to the vault smart contract** — no intermediary custody
-- **Redemptions are claimable directly from the vault** — no dependency on TBook for withdrawals
-- **All transactions require customer or platform authorization** — TBook cannot initiate transactions on behalf of customers
+Critical changes sit behind 24-hour timelocks: vault role changes on-chain, and treasury allowlist additions at the API level. This guarantees a review window before any sensitive change takes effect.

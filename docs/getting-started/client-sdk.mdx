@@ -1,109 +1,40 @@
 ---
-title: Client SDK
-sidebar_position: 2
+title: Client SDKs
+sidebar_position: 7
 ---
 
-# Client SDK
+# Client SDKs
 
-The Client SDK is ideal for browser-based applications that use wallet adapters for transaction signing.
+TypeScript SDKs for building and reading on each rail. They wrap the same REST contract — anything they do, you can also do with plain HTTP.
 
-## Install
+:::info SDK release status
+The SDK packages ship together with the v1 sandbox release at version **0.2.0** (npm, `@tbook-dev` scope). Surfaces shown here are indicative until the packages are published; the [REST contract](/api-reference) is the normative interface.
+:::
 
-```bash
-npm install @tbook-dev/vault-sdk @solana/web3.js @coral-xyz/anchor @solana/spl-token
-```
+## Packages
 
-## Read Vault State
+| Package | Rail / purpose |
+|---|---|
+| `@tbook-dev/vault-sdk` | Solana rail: reads + unsigned transaction builders |
+| `@tbook-dev/vault-sdk-sui` | Sui rail: reads + unsigned PTB builders (rcUSDP vault, XAUa AlphaVault) |
+| `@tbook-dev/vault-react` | React hooks and drop-in components on top of the above |
+| `@tbook-dev/vault-node` | Server-side: webhook verification + typed API client |
 
-```typescript
-import { TBookVault } from "@tbook-dev/vault-sdk";
+## What client SDKs are for
 
-const vault = new TBookVault({ network: "devnet" });
+Use a client SDK when you build transactions **in the browser** against a connected wallet (wallet-adapter / dapp-kit), rather than through your backend:
 
-// Get vault info
-const info = await vault.getVaultInfo();
-console.log(`TVL: $${info.tvlEstimate}, APY: ${info.apy}%`);
+```ts
+// Indicative 0.2.0 surface — Sui rail
+import { buildDeposit } from "@tbook-dev/vault-sdk-sui";
 
-// Get share price
-const price = await vault.getSharePrice();
-console.log(`1 share = $${price.price}`);
-
-// Get customer portfolio
-const user = await vault.getUserAccount("USER_PUBKEY");
-console.log(`Shares: ${user.effectiveShares}, Value: $${user.portfolioValueUsdc}`);
-```
-
-## Build Transactions
-
-The SDK returns **unsigned transactions**. You sign and submit them using your wallet adapter or WaaS provider.
-
-```typescript
-// Build a deposit transaction
-const { transaction, serialized, message } = await vault.buildDeposit({
-  user: userPublicKey,
-  amountUsdc: 100,
+const { txBytesBase64, summary } = await buildDeposit({
+  vault: "rcusdp-sui",          // from GET /v1/assets
+  owner: wallet.address,
+  amount: "100.00",
+  network: "testnet",
 });
-
-// Option 1: Browser wallet (Phantom, Backpack, etc.)
-const signature = await wallet.sendTransaction(transaction, connection);
-
-// Option 2: WaaS provider (Crossmint, Privy, Turnkey, etc.)
-const response = await waasApi.signAndSend({ transaction: serialized });
-
-// Option 3: Server-side keypair
-transaction.sign(keypair);
-const sig = await connection.sendRawTransaction(transaction.serialize());
+// sign with @mysten/dapp-kit useSignAndExecuteTransaction
 ```
 
-## Full Deposit Flow
-
-```typescript
-import { TBookVault } from "@tbook-dev/vault-sdk";
-import { PublicKey } from "@solana/web3.js";
-
-const vault = new TBookVault({ network: "mainnet-beta" });
-
-// 1. Check vault is accepting deposits
-const info = await vault.getVaultInfo();
-if (info.paused) throw new Error("Vault is paused");
-
-// 2. Build the deposit transaction
-const { transaction } = await vault.buildDeposit({
-  user: new PublicKey("USER_WALLET_ADDRESS"),
-  amountUsdc: 100,  // human-readable, SDK handles decimals
-});
-
-// 3. Sign and submit (your wallet/WaaS handles this)
-const signature = await sendTransaction(transaction);
-
-// 4. Customer now has a pending deposit
-// It will be settled when the curator processes the epoch (typically 1-2 days)
-const account = await vault.getUserAccount("USER_WALLET_ADDRESS");
-console.log(`Pending deposit: ${account.pendingDepositUsdc} USDC`);
-```
-
-## Key Concepts
-
-### Epochs
-
-Customer deposits and redemptions are processed in **epochs** (batches), not individually.
-
-```
-Epoch lifecycle:
-Open → Frozen → Processing → Settled
-```
-
-- **Open**: Accepting new deposits/redeems
-- **Frozen**: No new entries, curator processing
-- **Processing**: USDC is being allocated to RWA strategies
-- **Settled**: Shares minted / USDC available to claim
-
-Settlement timing depends on the underlying RWA strategy and the curator's processing frequency.
-
-### Lazy Settlement
-
-The SDK automatically handles **lazy settlement** — when a customer's pending deposit/redeem from a previous epoch hasn't been settled on-chain yet, the SDK includes the necessary instructions in every transaction to trigger settlement transparently.
-
-### Share Price & NAV
-
-Share price is updated daily based on the underlying RWA portfolio's Net Asset Value (NAV). Use `getSharePrice()` to get the latest price and APY.
+For server-driven integrations (most fintech apps, all omnibus/treasury setups), prefer the [REST API](/getting-started/rest-api) — it adds intent tracking, idempotency, and attribution automatically.

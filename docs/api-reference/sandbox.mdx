@@ -1,0 +1,48 @@
+---
+title: Sandbox Endpoints
+sidebar_position: 9
+---
+
+# Sandbox Endpoints
+
+Two endpoints that exist **only** on `sandbox.rwa-api.tbook.com` — calling them in production returns `not_found`. They require a `tbk_test_` key.
+
+---
+
+## POST /v1/sandbox/settle
+
+Run a settlement cycle on demand instead of waiting for the daily run.
+
+**Body:** `{vaultId}`
+
+**Response:** `202 Accepted` — settlement executes asynchronously; the corresponding `vault.cycle.settled` and per-account `transaction.*.settled` webhooks arrive within ~2 minutes.
+
+```bash
+curl -X POST $BASE/v1/sandbox/settle \
+  -H "Authorization: Bearer $TBK_TEST_KEY" -H "Content-Type: application/json" \
+  -d '{"vaultId": "rcusdp-sui"}'
+```
+
+What it does per rail:
+
+- **Sui direct** — the test operator settles all pending records in the current cycle.
+- **Solana gateway** — closes the current cycle, performs the (sandbox) cross-chain leg, and settles results back.
+
+## POST /v1/sandbox/faucet
+
+Fund an account's wallets with test USDC and gas where supported.
+
+**Body:** `{accountId}`
+
+```json
+{
+  "results": [
+    { "chain": "sui", "funded": true, "usdc": "1000.00", "gas": "1 SUI" },
+    { "chain": "solana", "funded": false,
+      "note": "Use faucet.circle.com and solana airdrop", 
+      "links": ["https://faucet.circle.com"] }
+  ]
+}
+```
+
+See [Test Funds](/getting-started/test-funds) for the full faucet guide.

@@ -6,58 +6,57 @@ slug: /api-reference
 
 # API Reference
 
-Base URL: `https://api.tbook.com/v1`
+| | |
+|---|---|
+| Sandbox | `https://sandbox.rwa-api.tbook.com/v1` |
+| Production | `https://rwa-api.tbook.com/v1` |
 
-## Authentication
+Authentication, error envelope, idempotency, pagination, amounts, and rate limits are defined once in [Authentication](/getting-started/authentication) and [Conventions](/getting-started/conventions) and apply to every endpoint below.
 
-All `/v1/*` endpoints require an API key via `Authorization` header or `x-api-key` header.
+## Endpoint map
 
-```
-Authorization: Bearer tbk_pub_YOUR_KEY
-```
+| Area | Endpoints |
+|---|---|
+| [Assets & Vaults](/api-reference/vault-endpoints) | `GET /assets` · `GET /vaults` · `GET /vaults/:vaultId` · `GET /vaults/:vaultId/price` |
+| [Accounts](/api-reference/accounts) | `POST/GET/PATCH /accounts` |
+| [Transactions](/api-reference/transaction-endpoints) | `POST /vaults/:vaultId/tx/{deposit,redeem,claim,cancel-deposit}` · `POST /transactions/:intentId/confirm` · `GET /transactions/:intentId` |
+| [Positions & Earnings](/api-reference/positions-earnings) | `GET /accounts/:id/{positions,earnings,transactions,portfolio}` |
+| [Analytics](/api-reference/analytics) | `GET /analytics/{users,aum,yield,flows}` |
+| [Treasury](/api-reference/treasury) | `POST/GET/DELETE /treasury/allowlist` · `POST /treasury/withdrawals` (+ approve) |
+| [Webhooks](/api-reference/webhook-endpoints) | `POST/GET/PATCH/DELETE /webhooks` · `GET /events` |
+| [Sandbox](/api-reference/sandbox) | `POST /sandbox/{settle,faucet}` (sandbox only) |
 
-| Key Type | Prefix | Rate Limit | Access |
-|----------|--------|------------|--------|
-| Publishable | `tbk_pub_` | 100 req/min | Read + TX building |
-| Secret | `tbk_secret_` | 1000 req/min | Full access + webhooks |
-| Test | `tbk_test_` | Unlimited | All features (devnet only) |
-| Anonymous | — | 30 req/min | Read-only |
+## Object IDs
 
-## Rate Limiting
+Every object carries a type-prefixed ID:
 
-Rate limit information is included in response headers:
+| Prefix | Object |
+|---|---|
+| `acct_` | Account |
+| `txi_` | Transaction intent |
+| `al_` | Treasury allowlist entry |
+| `twd_` | Treasury withdrawal |
+| `wh_` | Webhook endpoint |
+| `evt_` | Webhook event |
+| `req_` | Request (in error envelopes) |
 
-- `X-RateLimit-Limit` — Maximum requests per window
-- `X-RateLimit-Remaining` — Remaining requests in current window
-- `Retry-After` — Seconds to wait (included on 429 responses)
+All timestamps are ISO-8601 UTC.
 
-## Error Responses
+## Transaction intent lifecycle
 
-All errors follow a consistent format:
+Every money movement is a **transaction intent**, created when you call a `tx/*` build endpoint:
 
-```json
-{
-  "error": "Human-readable error message",
-  "code": "VAULT_PAUSED"
-}
-```
+| Status | Meaning | Entered by |
+|---|---|---|
+| `built` | Unsigned transaction returned; nothing on-chain yet | build endpoint |
+| `submitted` | You reported a digest/signature via `/confirm` | confirm endpoint |
+| `confirmed` | Transaction observed on-chain (≤ ~1 min indexer lag) | indexer |
+| `settled` | Economic effect final: shares credited / USDC claimable / claim paid | settlement |
+| `failed` | Transaction reverted on-chain | indexer |
+| `expired` | Never seen on-chain before the unsigned transaction's validity ended — harmless, rebuild freely | indexer |
 
-### HTTP Status Codes
+Terminal states: `settled`, `failed`, `expired`. The step from `confirmed` to `settled` takes one settlement cycle (T+1 / T+3 depending on the vault).
 
-| HTTP Code | Meaning |
-|-----------|---------|
-| 400 | Invalid request (missing fields, bad pubkey) |
-| 401 | Missing or invalid API key |
-| 422 | SDK validation error (vault paused, min deposit, etc.) |
-| 429 | Rate limit exceeded |
-| 500 | Internal server error |
+## Treasury withdrawal lifecycle
 
-### Error Codes
-
-| Code | Description |
-|------|-------------|
-| `VAULT_PAUSED` | Vault is paused, no deposits/redeems accepted |
-| `MIN_DEPOSIT` | Amount below minimum (1 USDC) |
-| `MAX_EPOCH_DEPOSIT` | Amount exceeds epoch limit |
-| `EPOCH_NOT_OPEN` | Current epoch is not accepting entries |
-| `RPC_ERROR` | RPC call failed |
+`pending_approval → approved → built → submitted → confirmed`, with `rejected` and `expired` (approvals are valid 24 h) as alternates. Organizations without dual-approval start directly at `built`. Details in [Treasury](/api-reference/treasury).

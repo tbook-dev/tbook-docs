@@ -1,126 +1,107 @@
 ---
-title: Vault Endpoints
+title: Assets & Vaults
 sidebar_position: 2
 ---
 
-# Vault Endpoints
+# Assets & Vaults
 
-Read-only endpoints for querying vault state, share prices, and customer accounts.
+Read endpoints for the catalog and live vault state. The catalog is **filtered to assets enabled for your organization** — a newly launched asset simply does not appear until it is enabled for you. There are no marketing states in the API.
+
+---
+
+## GET /v1/assets
+
+The full catalog, grouped by asset.
+
+**Response — `data[]`:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `id`, `symbol`, `name` | string | Asset identity (`rcusdp`, `xaua`) |
+| `type` | open enum | Underlying asset class: `cash_yield` (tokenized T-bills / money market), `commodity` (physical commodity token), plus reserved values (`private_credit`, `fixed_income`, `real_estate`, `equity`). **Tolerate unknown values** — new classes are added without notice. |
+| `nativeChain` | enum | `sui` |
+| `status` | enum | `active` · `paused` (no new deposits; redeem/claim unaffected) · `retired` (history & redeem only) |
+| `currency` | string | Quote currency (`USDC`) |
+| `price` | string | NAV per share/unit in `currency` |
+| `apy` | string \| null | Yield assets only |
+| `unit` | string? | Physical unit (`gram` for xaua) |
+| `vaults[]` | object[] | Investable instances — see below |
+
+**`vaults[]` fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `vaultId` | string | e.g. `rcusdp-sui` — use in all `tx/*` and vault endpoints |
+| `chain` | enum | `sui` · `solana` |
+| `rail` | enum | `direct` (same-chain) · `gateway` (cross-chain via TBook gateway) |
+| `status` | enum | as asset status |
+| `minDeposit` | string | in `currency` |
+| `settlement` | object | see below |
+| `cancelable` | bool | pending deposits can be cancelled while the cycle accepts |
+| `cancelFeeBps` | number? | cancel fee, if any |
+| `feeBps` | object? | `{subscribe, redeem}` asset-level fees, if any |
+| `requiresWhitelist` | bool? | XAUa: wallet must be whitelisted before transacting |
+
+**`settlement` object** — customer-facing timing only (internal batching mechanics are not exposed):
+
+| Field | Meaning |
+|---|---|
+| `deposit` / `redeem` | Time to settle, e.g. `"T+1"`, `"T+3"` (business days) |
+| `cutoffUtc` | Requests before this time enter the current settlement cycle; after it, the next one |
+| `instantRedeem?` | `{available, feeBps}` — immediate exit path where supported |
+
+**Example:**
+
+```json
+{"data":[
+  {"id":"rcusdp","symbol":"rcUSDP","name":"TBook USD Yield Vault","type":"cash_yield",
+   "nativeChain":"sui","status":"active","currency":"USDC","price":"1.02754344","apy":"8.32",
+   "vaults":[
+     {"vaultId":"rcusdp-sui","chain":"sui","rail":"direct","status":"active","minDeposit":"1",
+      "settlement":{"deposit":"T+1","redeem":"T+1","instantRedeem":{"available":true,"feeBps":700}},
+      "cancelable":true},
+     {"vaultId":"rcusdp-sol","chain":"solana","rail":"gateway","status":"active","minDeposit":"1",
+      "settlement":{"deposit":"T+1~3","redeem":"T+1~3"},"cancelable":true,"cancelFeeBps":10}]},
+  {"id":"xaua","symbol":"XAUa","name":"Alpha Gold Token","type":"commodity",
+   "nativeChain":"sui","status":"active","currency":"USDC","price":"107.51","unit":"gram",
+   "vaults":[
+     {"vaultId":"xaua-sui","chain":"sui","rail":"direct","status":"active","minDeposit":"10",
+      "settlement":{"deposit":"T+3","redeem":"T+3","cutoffUtc":"10:00"},
+      "requiresWhitelist":true,"feeBps":{"subscribe":10,"redeem":20}}]}]}
+```
 
 ---
 
 ## GET /v1/vaults
 
-List all available vaults.
-
-**Response:**
-
-```json
-{
-  "vaults": [
-    {
-      "id": "tbills-01",
-      "name": "US T-Bills Vault",
-      "description": "RWA yield vault powered by TBook",
-      "programId": "BdeE87CsE9kvxJJcxaJqxNsC2nC6hFft3UBzcgAm5X1i",
-      "network": "devnet",
-      "shareToken": { "symbol": "tbTBILL", "decimals": 6 },
-      "status": "active"
-    }
-  ]
-}
-```
+Flat vault list (same entitlement filter). **Query:** `assetId=`, `chain=`, `status=`.
 
 ---
 
 ## GET /v1/vaults/:vaultId
 
-Get vault state including current epoch info.
+One vault with live state. Catalog fields plus:
 
-**Path params:** `vaultId` — Vault identifier (e.g. `tbills-01`)
+| Field | Type | Notes |
+|---|---|---|
+| `tvl` | string | Total value locked, in `currency` |
+| `sharePrice` | string | Current NAV per share |
+| `apy` | string \| null | |
+| `currentCycle` | object | `{number, status, cutoffAt?, expectedSettlementAt?}` |
+| `paused` | bool | |
+| `addresses` | object | On-chain identifiers (`packageId`/`programId`, vault objects…) — **read-only transparency**, never request inputs |
+| `updatedAt` | timestamp | |
 
-**Response:**
+`currentCycle.status` is `accepting` (new requests enter this cycle) or `processing` (cycle closed, settling). Internal vault states are collapsed into these two — your UI needs nothing finer.
 
-```json
-{
-  "vault": {
-    "totalShares": 1.77,
-    "currentDepositEpoch": 2,
-    "currentRedeemEpoch": 2,
-    "paused": false,
-    "vaultUsdcBalance": 0.003,
-    "tvlEstimate": 0.003,
-    "cancelFeeBps": 10,
-    "minDeposit": 1,
-    "maxEpochDeposit": 100000
-  },
-  "depositEpoch": {
-    "epoch": 2,
-    "status": "Open",
-    "totalDepositUsdc": 0,
-    "depositUserCount": 0
-  },
-  "redeemEpoch": {
-    "epoch": 2,
-    "status": "Open",
-    "totalRedeemShares": 0,
-    "redeemUserCount": 0
-  }
-}
-```
+**Errors:** `not_found`.
 
 ---
 
 ## GET /v1/vaults/:vaultId/price
 
-Get current share price and APY.
-
-**Path params:** `vaultId` — Vault identifier
-
-**Response:**
-
 ```json
-{
-  "price": "1.02754344",
-  "priceNum": 1.02754344,
-  "apy": "8.32",
-  "date": "2026-03-18"
-}
+{ "vaultId": "rcusdp-sui", "price": "1.02754344", "apy": "8.32", "asOf": "2026-06-15T08:00:00Z" }
 ```
 
----
-
-## GET /v1/vaults/:vaultId/users/:pubkey
-
-Get customer account state (balances, pending operations, claimable amounts).
-
-**Path params:**
-
-- `vaultId` — Vault identifier
-- `pubkey` — Wallet public key
-
-**Response:**
-
-```json
-{
-  "shares": 100.0,
-  "effectiveShares": 100.0,
-  "pendingDepositUsdc": 0,
-  "pendingRedeemShares": 0,
-  "claimableUsdc": 0,
-  "effectiveClaimableUsdc": 0,
-  "portfolioValueUsdc": 102.75
-}
-```
-
-### Response Fields
-
-| Field | Description |
-|-------|-------------|
-| `shares` | On-chain settled share balance |
-| `effectiveShares` | Shares including unsettled amounts (use this for display) |
-| `pendingDepositUsdc` | USDC amount in pending deposit epoch |
-| `pendingRedeemShares` | Shares in pending redeem epoch |
-| `claimableUsdc` | USDC available to claim from settled redeems |
-| `effectiveClaimableUsdc` | Claimable USDC including unsettled amounts |
-| `portfolioValueUsdc` | Total portfolio value in USDC at current share price |
+Cached up to 60 seconds. Poll freely (read rate limits apply), or subscribe to `vault.price.updated` webhooks instead.
