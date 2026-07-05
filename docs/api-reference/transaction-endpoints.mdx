@@ -7,27 +7,30 @@ sidebar_position: 4
 
 Money movement follows **build → sign → submit → confirm**. Build endpoints return an **unsigned** transaction plus an `intentId`; your wallet infrastructure signs and submits; TBook's indexer tracks the result through to settlement (see the [intent lifecycle](/api-reference#transaction-intent-lifecycle)).
 
-All build endpoints: secret or publishable key · support `Idempotency-Key` · resolve `accountId` to the account's wallet on the vault's chain.
+All build endpoints: secret or publishable key (contract style with `accountId`) · support `Idempotency-Key` · resolve `accountId` to the account's wallet on the vault's chain. An `intentId` is recorded only for authenticated calls — anonymous legacy-style calls get a transaction but no intent tracking and no idempotency dedupe.
 
 **Common build-time errors:**
 
 | Code | When |
 |---|---|
-| `invalid_request` | Account has no wallet on the vault's chain |
-| `permission_denied` | Account is `frozen` |
-| `not_whitelisted` | XAUa: wallet not yet whitelisted by the issuer |
-| `vault_paused` | Vault not accepting this operation |
-| `cycle_closed` | Settlement cycle just closed for processing — retry shortly; the request lands in the next cycle |
+| `invalid_request` (400) | Account has no wallet on the vault's chain |
+| `permission_denied` (403) | Account is `frozen`, or the required `compliance.kyc`/`kyb` attestation is missing before a first deposit |
+| `not_whitelisted` (403) | XAUa: wallet not yet whitelisted by the issuer (on-chain preflight at build time) |
+| `vault_paused` (409) | Vault paused — deposit/redeem rejected; claim and cancel-deposit stay open |
+| `insufficient_balance` (400) | Wallet lacks the USDC/shares/gas needed to build the transaction, or nothing is claimable |
+
+(`cycle_closed` is defined in the error contract but is **not currently emitted** — a cycle-window conflict surfaces as an on-chain abort at execution; the transaction never lands, so the intent simply never settles. Use the on-chain result and `GET /v1/accounts/:id/positions` as the source of truth.)
 
 **Common response shape (all four build endpoints):**
 
 | Field | Type | Notes |
 |---|---|---|
-| `intentId` | string | track via lifecycle; appears in webhooks |
-| `vaultId`, `type`, `chain`, `rail` | string | echo (plus `settlementCycle` once known) |
+| `intentId` | string? | present on authenticated calls — track via lifecycle; appears in webhooks |
+| `vaultId`, `type`, `chain`, `rail` | string | echo of what was built |
 | `transaction.format` | enum | `sui:tx-bytes-base64` · `solana:tx-base58` |
 | `transaction.data` | string | the unsigned transaction — sign and submit **as-is** |
-| `summary` | object | human-checkable: amounts, `estimatedShares` / `estimatedProceeds`, `sharePrice`, `fees` |
+| `summary` | object? | human-checkable amounts — see each endpoint for its fields; price-derived fields (`sharePrice`, `estimatedShares`) are best-effort and may be absent if the price source is briefly unavailable |
+| `message` | string | human-readable description of the built transaction |
 | `expiresAt` | timestamp | ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
 
 ---
@@ -43,21 +46,24 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
   "intentId": "txi_01h…",
   "vaultId": "rcusdp-sui", "type": "deposit", "chain": "sui", "rail": "direct",
   "transaction": { "format": "sui:tx-bytes-base64", "data": "AAAC…" },
-  "summary": { "amount": "100.00", "estimatedShares": "97.31", "sharePrice": "1.0275", "fees": "0.00" },
+  "summary": { "amount": "100", "sharePrice": "1.0275", "estimatedShares": "97.3236" },
+  "message": "Deposit 100.000000 USDC into rcusdp-sui",
   "expiresAt": "2026-06-15T08:10:00Z"
 }
 ```
 
-**Extra errors:** `below_min_deposit`.
+**Extra errors:** `below_min_deposit` (400).
 
 ## POST /v1/vaults/:vaultId/tx/redeem
 
 **Body:** `{accountId, shares, mode}` — `shares` decimal string; `mode` is `"queued"` (default) or `"instant"`.
 
 - **Queued** — enters the settlement cycle; proceeds become claimable on settlement (`transaction.redeem.settled`).
-- **Instant** — only where the catalog shows `settlement.instantRedeem.available`; pays USDC immediately at `instantRedeem.feeBps`. `summary.estimatedProceeds` reflects the fee.
+- **Instant** — only where the vault's catalog declares `settlement.instantRedeem.available`; pays USDC immediately, less the fee. Availability and fee are operator-tunable **on-chain** and the catalog values are indicative — attempt the build and handle rejection (fall back to queued), or read the on-chain vault state via `@tbookdev/vault-sdk-sui`.
 
-**Extra errors:** `insufficient_shares`; `invalid_request` if `mode:"instant"` is unsupported on this vault.
+The `summary` echoes `{shares, mode}`.
+
+**Extra errors:** `invalid_request` if `mode:"instant"` is not available on this vault; `insufficient_balance` if the wallet holds fewer shares than requested.
 
 ## POST /v1/vaults/:vaultId/tx/claim
 
@@ -67,30 +73,37 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
 
 ## POST /v1/vaults/:vaultId/tx/cancel-deposit {#cancel-deposit}
 
-**Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings). Allowed only while that record's cycle is still `accepting`. `rcusdp-sol` charges `cancelFeeBps` (0.1%).
+**Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings) and is required on the Sui rail (each pending record is cancelled individually). On the legacy Solana gateway rail the full pending deposit bucket is cancelled and `recordId` is ignored.
 
-**Extra errors:** `not_found` (unknown record), `cycle_closed` (already processing).
+**Fees:** the vault's `cancelFeeBps` is withheld from the returned principal — **200 bps (2%) on `rcusdp-sui`** (verified on-chain), 10 bps on the legacy `rcusdp-sol` rail. The response `summary` discloses `{recordId?, cancelable, cancelFeeBps}` plus a note: the on-chain returned amount is authoritative — reconcile against it, not the requested amount.
+
+**Extra errors:** `invalid_request` (400) if the vault is not cancelable (`xaua-sui` declares `cancelable: false`) or if `recordId` is missing on the Sui rail.
 
 ---
 
 ## POST /v1/transactions/:intentId/confirm
 
-Report the chain result after you submit:
+Report the chain result after you submit. Requires any valid API key.
 
 **Body:** `{digest}` (Sui) or `{signature}` (Solana).
 
-Optional but recommended: the intent flips to `submitted` instantly and webhook correlation is exact. If you skip it, the indexer matches the transaction heuristically within about a minute.
+**Response:** `{intentId, status}` — the intent flips to `submitted`.
+
+Optional but recommended: webhook correlation becomes exact. If you skip it, the indexer matches the transaction heuristically within about a minute.
 
 **Errors:** `not_found`; `conflict` if the digest is already bound to a different intent.
 
 ## GET /v1/transactions/:intentId
 
+Requires any valid API key. Returns the full intent record:
+
 ```json
 {
   "intentId": "txi_01h…", "status": "settled", "type": "deposit",
   "vaultId": "rcusdp-sui", "accountId": "acct_7f3a…",
-  "amount": "100.00", "shares": "97.31", "fees": "0.00", "settlementCycle": 6,
-  "digest": "8vJk…",
+  "chain": "sui", "walletAddress": "0xabc…",
+  "amount": "100", "shares": null, "mode": null,
+  "settlementCycle": 6, "digest": "8vJk…", "expiresAt": "…",
   "createdAt": "…", "submittedAt": "…", "confirmedAt": "…", "settledAt": "…",
   "failureReason": null
 }

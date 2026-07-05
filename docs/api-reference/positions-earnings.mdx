@@ -19,21 +19,20 @@ Live holdings per vault. **Query:** `assetId=` (optional filter).
     {
       "assetId": "rcusdp",
       "vaultId": "rcusdp-sui",
-      "shares": "97.31",
+      "shares": "97.310000",
       "sharePrice": "1.0275",
-      "value": "100.02",
+      "value": "99.99",
       "currency": "USDC",
       "pending": {
         "deposits": [
-          { "recordId": "42", "amount": "50.00", "settlementCycle": 6,
+          { "recordId": "42", "amount": "50.000000",
             "cancelable": true, "submittedAt": "2026-06-15T08:02:11Z" }
         ],
         "redeems": [
-          { "recordId": "7", "shares": "10.00", "settlementCycle": 6,
-            "estimatedProceeds": "10.27" }
+          { "recordId": "7", "shares": "10.000000", "estimatedProceeds": "10.27" }
         ]
       },
-      "claimable": "0.00",
+      "claimable": "0.000000",
       "asOf": "2026-06-15T08:15:00Z"
     }
   ]
@@ -43,14 +42,15 @@ Live holdings per vault. **Query:** `assetId=` (optional filter).
 Notes:
 
 - **`pending.deposits[].recordId` is the cancel handle** for [`tx/cancel-deposit`](/api-reference/transaction-endpoints#cancel-deposit).
-- Sui-rail positions read on-chain records directly. Solana-rail positions already include settled-but-not-yet-touched balances (the gateway settles lazily on the user's next interaction; the API accounts for it so you never display stale numbers).
-- `value = shares × sharePrice`, in `currency`.
+- Only vaults where the account holds something appear; vaults on chains where the account has no wallet are skipped.
+- Sui-rail positions read on-chain records directly. Legacy Solana-rail positions already include settled-but-not-yet-touched balances (the gateway settles lazily on the user's next interaction; the API accounts for it so you never display stale numbers).
+- `value = shares × sharePrice`, in `currency`. `sharePrice` and `value` are `null` when the price source is briefly unavailable — handle that in your UI.
 
 ---
 
 ## GET /v1/accounts/:id/earnings
 
-**Query:** `assetId=` (required for v1).
+**Query:** `assetId=` (optional; defaults to `rcusdp`).
 
 ```json
 {
@@ -68,10 +68,10 @@ Notes:
 
 **Definitions (normative):**
 
-- `netInvested = totalDeposited − totalRedeemed` (redeemed = claimed proceeds)
+- `netInvested = totalDeposited − totalRedeemed` (redeemed = claimed proceeds; deposits cancelled before settlement net out of `totalDeposited`)
 - `currentValue = (shares + pendingRedeemShares) × sharePrice + pendingDepositAmount + claimable`
 - `profit = currentValue − netInvested`
-- `profitRateBps = profit / netInvested × 10⁴`
+- `profitRateBps = profit / netInvested × 10⁴` (integer; `0` when `netInvested` ≤ 0)
 - Fees are reported separately in `totalFees`, not netted out of `profit`.
 
 For commodity assets (XAUa) `profit` is price appreciation — there is no yield component.
@@ -82,29 +82,29 @@ For commodity assets (XAUa) `profit` is price appreciation — there is no yield
 
 Indexer-backed history — the unified replacement for separate deposit/redemption/withdrawal history lists.
 
-**Query:** `type=deposit|redeem|claim|cancel` · `status=` ([intent statuses](/api-reference#transaction-intent-lifecycle)) · `vaultId=` · `from=` · `to=` · `limit=` · `cursor=`.
+**Query:** `type=deposit|redeem|claim|cancel_deposit|treasury_withdrawal` · `status=` ([intent statuses](/api-reference#transaction-intent-lifecycle)) · `vaultId=` · `limit=` (default 20, max 100) · `cursor=`.
 
 ```json
 {
   "data": [
     {
-      "id": "txi_01h…", "type": "deposit", "status": "settled",
-      "vaultId": "rcusdp-sui", "amount": "100.00", "shares": "97.31",
-      "settlementCycle": 5, "digest": "8vJk…",
-      "submittedAt": "…", "settledAt": "…", "source": "api"
+      "id": "txi_01h…", "source": "api", "type": "deposit", "status": "settled",
+      "vaultId": "rcusdp-sui", "chain": "sui",
+      "amount": "100", "shares": null, "digest": "8vJk…",
+      "createdAt": "…", "submittedAt": "…", "settledAt": "…"
     },
     {
-      "id": null, "type": "deposit", "status": "settled",
-      "vaultId": "rcusdp-sui", "amount": "25.00", "shares": "24.32",
-      "settlementCycle": 5, "digest": "3kPw…",
-      "submittedAt": "…", "settledAt": "…", "source": "chain"
+      "id": "che_3kPw…_0", "source": "chain", "type": "deposit", "status": "settled",
+      "vaultId": "rcusdp-sui", "chain": "sui",
+      "amount": "25.000000", "shares": null, "digest": "3kPw…",
+      "createdAt": "…", "submittedAt": null, "settledAt": "…"
     }
   ],
   "nextCursor": "eyJ…", "hasMore": false
 }
 ```
 
-`source: "chain"` rows are on-chain transactions from the account's registered wallet that were **not** built through the API — indexed and attributed anyway, with `id: null`. (On `omnibus` accounts these trigger a warning event, since pool wallets should only transact through the API.)
+`source: "chain"` rows are on-chain transactions from the account's registered wallet that were **not** built through the API — indexed and attributed anyway, with a synthetic `che_…` id derived from the digest. They are merged into the **first page only**; paginate with `cursor` for the API-originated intent history.
 
 ---
 
@@ -115,11 +115,14 @@ One call for an in-app dashboard:
 ```json
 {
   "totalValue": "4210.55",
-  "totalProfit": "210.55",
+  "totalProfit": null,
   "currency": "USDC",
   "positions": [
-    { "assetId": "rcusdp", "value": "3110.55", "profit": "190.55", "share": "0.74" },
-    { "assetId": "xaua",   "value": "1100.00", "profit": "20.00",  "share": "0.26" }
-  ]
+    { "assetId": "rcusdp", "vaultId": "rcusdp-sui", "value": "3110.55", "share": "0.7388" },
+    { "assetId": "xaua",   "vaultId": "xaua-sui",   "value": "1100.00", "share": "0.2612" }
+  ],
+  "asOf": "2026-06-15T08:15:00Z"
 }
 ```
+
+`totalProfit` is currently `null` — portfolio-level profit requires the full indexed history and lands with a later release. Use [`/earnings`](#get-v1accountsearnings) per asset for profit today.

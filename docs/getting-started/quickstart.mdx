@@ -62,12 +62,13 @@ Response:
   "chain": "sui",
   "rail": "direct",
   "transaction": { "format": "sui:tx-bytes-base64", "data": "AAAC…" },
-  "summary": { "amount": "100.00", "estimatedShares": "97.31", "sharePrice": "1.0275", "fees": "0.00" },
+  "summary": { "amount": "100", "sharePrice": "1.0275", "estimatedShares": "97.323601" },
+  "message": "Deposit 100 USDC into rcusdp-sui",
   "expiresAt": "2026-06-15T08:10:00Z"
 }
 ```
 
-Nothing has moved yet — `transaction.data` is unsigned.
+Nothing has moved yet — `transaction.data` is unsigned. Sui transactions stay valid for about 10 minutes (`expiresAt`); if one expires unsigned, rebuild with a new `Idempotency-Key`.
 
 ## 4. Sign and submit
 
@@ -91,7 +92,7 @@ curl -X POST $BASE/v1/transactions/txi_01h…/confirm \
   -d '{"digest": "8vJk…"}'
 ```
 
-The intent is now `submitted`; the indexer flips it to `confirmed` within about a minute even if you skip this step.
+The response is `{"intentId": "txi_01h…", "status": "submitted"}`. The indexer flips the intent to `confirmed` on its next pass (about a minute) even if you skip this step — but reporting the digest lets it match your transaction exactly instead of heuristically.
 
 ## 6. Register a webhook
 
@@ -113,7 +114,7 @@ curl -X POST $BASE/v1/sandbox/settle \
   -d '{"vaultId": "rcusdp-sui"}'
 ```
 
-Within ~2 minutes your endpoint receives:
+This returns `202` and records a `sandbox.settle.requested` event — it triggers the operator settlement cycle rather than executing it inline, so poll `GET /v1/events` to see the request status. Once the cycle runs (typically a few minutes on sandbox), your endpoint receives:
 
 ```json
 {
@@ -121,16 +122,16 @@ Within ~2 minutes your endpoint receives:
   "type": "transaction.deposit.settled",
   "created": "2026-06-15T08:14:05Z",
   "data": {
-    "intentId": "txi_01h…",
     "accountId": "acct_7f3a…",
     "externalId": "user-8492",
     "vaultId": "rcusdp-sui",
-    "amount": "100.00",
-    "shares": "97.31",
-    "sharePrice": "1.0275",
-    "settlementCycle": 6
+    "intentId": "txi_01h…",
+    "recordId": "42",
+    "shares": "97.323601"
   }
 }
+
+The settled event is emitted when the **operator's settlement transaction** lands — its payload carries the `recordId` and the exact `shares` minted; it does not echo your submission digest.
 ```
 
 ## 8. Read back positions and earnings

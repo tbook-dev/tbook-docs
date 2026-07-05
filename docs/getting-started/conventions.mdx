@@ -15,7 +15,7 @@ Non-2xx responses always carry the same envelope:
 {
   "error": {
     "code": "below_min_deposit",
-    "message": "Minimum deposit for rcusdp-sui is 1 USDC.",
+    "message": "Minimum deposit is 1 USDC",
     "requestId": "req_01h2x…"
   }
 }
@@ -27,26 +27,28 @@ Quote `requestId` in support requests. Error codes:
 |---|---|---|
 | `invalid_request` | 400 | Malformed body, unknown field value, violated constraint |
 | `authentication_error` | 401 | Bad/missing/revoked key |
-| `permission_denied` | 403 | Key type or account state forbids this action (e.g. frozen account, approver = creator) |
+| `permission_denied` | 403 | Key type or account state forbids this action (frozen account, missing KYC/KYB attestation, treasury approver = creator) |
+| `not_whitelisted` | 403 | Wallet not enrolled for a whitelist-gated vault (e.g. `xaua-sui`) — deposit builds run an on-chain preflight |
 | `not_found` | 404 | Resource doesn't exist **or belongs to another organization** |
 | `conflict` | 409 | Uniqueness violated (wallet already bound, externalId taken, digest already linked) |
 | `idempotency_conflict` | 409 | Same `Idempotency-Key`, different request body |
+| `vault_paused` | 409 | Vault not accepting new deposits/redemptions (e.g. the frozen legacy Solana rail); claim and cancel stay open |
+| `cycle_closed` | 409 | Reserved — defined in the contract but not currently emitted; cycle-window conflicts surface as on-chain aborts at execution |
 | `rate_limited` | 429 | Slow down; honor `Retry-After` |
-| `vault_paused` | 422 | Vault not accepting this operation right now |
-| `below_min_deposit` | 422 | Amount under the vault's `minDeposit` |
-| `cycle_closed` | 422 | Current settlement cycle just closed for processing — retry shortly; the request lands in the next cycle |
-| `insufficient_balance` | 422 | Nothing claimable / not enough USDC |
-| `insufficient_shares` | 422 | Redeem amount exceeds available shares |
-| `not_whitelisted` | 422 | XAUa: wallet not yet whitelisted by the issuer |
+| `below_min_deposit` | 400 | Amount under the vault's `minDeposit` |
+| `insufficient_balance` | 400 | Nothing claimable, not enough USDC, or the wallet has no gas coin to build the transaction |
+| `insufficient_shares` | 400 | Redeem amount exceeds available shares |
 | `internal_error` | 500 | Our fault; safe to retry with the same idempotency key |
 
 ## Idempotency
 
 Every money-movement POST accepts an `Idempotency-Key` header (any unique string ≤255 chars; UUIDs recommended):
 
-- Same key + same body → the original response is replayed (no duplicate effect).
+- Same key + same body → the original response is replayed verbatim (no duplicate effect), marked with an `Idempotency-Replayed: true` header.
 - Same key + different body → `409 idempotency_conflict`.
-- Keys expire after 24 hours.
+- Keys are retained for **24 hours** — a same-key retry after that re-executes the request. Don't rely on idempotency for retries spanning more than a day.
+- Storage is scoped to your organization. Anonymous (keyless) requests are **not deduplicated** — use an API key for any money movement you may retry.
+- `5xx` responses are not cached, so you can safely retry them with the same key.
 
 Use it on: all `tx/*` builds, account creation, treasury withdrawals, webhook registration. If a build's transaction **expires unsigned**, rebuild with a **new** key — the old intent simply expires harmlessly.
 
@@ -56,13 +58,13 @@ All monetary values are **decimal strings** (`"100.50"`), never floats, with exp
 
 ## Pagination
 
-List endpoints take `?limit=` (max 100, default 20) and `?cursor=`:
+List endpoints take `?limit=` (default 20, max 100) and `?cursor=`:
 
 ```json
 { "data": [ … ], "nextCursor": "eyJpZCI6…", "hasMore": true }
 ```
 
-Pass `nextCursor` back verbatim. Cursors are opaque and expire after 24 hours.
+Pass `nextCursor` back verbatim — cursors are opaque. One exception: [`GET /v1/events`](/api-reference/webhook-endpoints) paginates with `after` + `types` + `limit` (default 50, max 200) instead of a cursor.
 
 ## Timestamps & IDs
 

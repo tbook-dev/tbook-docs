@@ -25,7 +25,9 @@ curl -H "x-api-key: tbk_secret_..." https://rwa-api.tbook.com/v1/accounts
 | Publishable | `tbk_pub_` | May ship in client-side code | Read catalogs & prices, build transactions |
 | Test | `tbk_test_` | Sandbox only | Everything, sandbox only |
 
-Account data, webhook management, treasury controls, and analytics always require a **secret** key. Production keys never work on sandbox and vice versa.
+Account data, positions, webhook management, treasury controls, and analytics always require a **secret** key (test keys have the same access on sandbox). Production keys never work on sandbox and vice versa.
+
+Public catalog reads (e.g. `GET /v1/assets`, `GET /v1/vaults/:vaultId/price`) also accept unauthenticated requests, but anonymous calls carry no organization context — no accounts, no intents, no idempotency deduplication.
 
 ## Rate limits
 
@@ -34,8 +36,9 @@ Account data, webhook management, treasury controls, and analytics always requir
 | `tbk_secret_` | 1000 requests/min |
 | `tbk_pub_` | 100 requests/min |
 | `tbk_test_` | unlimited |
+| (no key) | 30 requests/min |
 
-Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; exceeding the limit returns `429` with a `Retry-After` header. Back off and retry — bursts are normal, sustained excess is not.
+Responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header. Back off and retry — bursts are normal, sustained excess is not.
 
 ## Issuance, rotation, revocation
 

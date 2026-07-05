@@ -19,7 +19,7 @@ curl -X POST $BASE/v1/webhooks \
   -d '{"url": "https://your-server.example/tbook", "events": ["transaction.*", "vault.*"]}'
 ```
 
-Save the returned `secret` (`whsec_…`) — it is shown once. Management endpoints: [Webhook Management](/api-reference/webhook-endpoints).
+Save the returned `secret` (`whsec_…`) — it is shown only on creation and rotation. Registration rules: the URL must be HTTPS and publicly reachable (localhost and private/link-local addresses are rejected), and each organization can register at most **10 endpoints**. Management endpoints: [Webhook Management](/api-reference/webhook-endpoints).
 
 ### 2. Verify every delivery {#verifying-signatures}
 
@@ -29,20 +29,25 @@ Each delivery carries:
 X-TBook-Signature: t=1718438045,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
 ```
 
-`v1 = HMAC_SHA256(secret, "<t>.<rawBody>")`. Reject if the comparison fails (use a timing-safe compare) or if `|now − t|` exceeds 5 minutes.
+`v1 = HMAC_SHA256(secret, "<t>.<rawBody>")`. Reject if the comparison fails (use a timing-safe compare) or if `|now − t|` exceeds 5 minutes. During a [secret rotation](#rotating-secrets) grace window the header carries **two** `v1=` entries — accept the delivery if **any** of them matches.
 
-**Node (`@tbook-dev/vault-node`):**
+**Node (`@tbookdev/vault-node`):**
 
 ```ts
-import { TBookVaultServer } from "@tbook-dev/vault-node";
+import { TBookVaultServer } from "@tbookdev/vault-node";
 
-const tbook = new TBookVaultServer({ webhookSecret: process.env.WHSEC });
+const tbook = new TBookVaultServer({
+  secretKey: process.env.TBK_SECRET_KEY,
+  webhookSecret: process.env.WHSEC,
+});
 app.post("/tbook", express.raw({ type: "*/*" }), (req, res) => {
-  const event = tbook.webhooks.verify(req.body.toString(), req.header("X-TBook-Signature"));
+  const event = tbook.webhooks.verify(req.body, req.header("X-TBook-Signature")!);
   handle(event);          // do real work async
   res.sendStatus(200);    // ack fast
 });
 ```
+
+`tbook.webhooks.verify` handles timestamp tolerance, timing-safe comparison, and multiple `v1` entries for you, and throws `WebhookVerificationError` on any failure.
 
 **Python (raw):**
 
@@ -50,12 +55,13 @@ app.post("/tbook", express.raw({ type: "*/*" }), (req, res) => {
 import hmac, hashlib, time
 
 def verify(raw_body: bytes, header: str, secret: str) -> None:
-    parts = dict(p.split("=", 1) for p in header.split(","))
-    t, v1 = parts["t"], parts["v1"]
+    parts = [p.split("=", 1) for p in header.split(",")]
+    t = next(v for k, v in parts if k == "t")
+    v1s = [v for k, v in parts if k == "v1"]  # two entries during rotation
     if abs(time.time() - int(t)) > 300:
         raise ValueError("stale timestamp")
     expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, v1):
+    if not any(hmac.compare_digest(expected, v1) for v1 in v1s):
         raise ValueError("bad signature")
 ```
 
@@ -63,7 +69,7 @@ Always verify against the **raw request body** — re-serializing JSON breaks th
 
 ### 3. Acknowledge fast, process async
 
-Return 2xx as soon as the signature checks out; do the real work on a queue. Non-2xx (or a timeout) triggers [retries](/webhooks/retry-policy).
+Return 2xx as soon as the signature checks out; do the real work on a queue. A 5xx response or a 10 s timeout triggers [retries](/webhooks/retry-policy); a 4xx is treated as a permanent rejection of that delivery.
 
 ## Payload envelope
 
@@ -77,12 +83,13 @@ Return 2xx as soon as the signature checks out; do the real work on a queue. Non
 ```
 
 - **Consume idempotently keyed on `id`** — the same event can be delivered more than once.
-- Per-account events (`transaction.*`, `account.*`, `treasury.*`) are delivered **only to the organization that owns the account** and include your `externalId` so you can route without lookups.
+- Per-account events (`transaction.*`, `account.*`, `treasury.*`) are delivered **only to the organization that owns the account**; `transaction.*` and `account.created` events include your `externalId` so you can route without lookups (`treasury.*` events carry the `accountId`).
+- Platform-wide `vault.*` events fan out to every subscribed organization.
 - New event types appear over time — route unknown `type`s to a no-op handler ([forward compatibility](/getting-started/conventions#versioning--forward-compatibility)).
 
 ## Rotating secrets
 
-`POST /v1/webhooks/:id/rotate-secret` issues a new secret; the old one stays valid for 24 hours in parallel so you can roll servers without dropping verification.
+`POST /v1/webhooks/:id/rotate-secret` returns `{secret, previousSecretValidUntil}`; the old secret stays valid for 24 hours in parallel so you can roll servers without dropping verification. During that grace window every delivery is **dual-signed**: the `X-TBook-Signature` header carries two `v1=` entries (new secret first, previous second) — verify against any matching entry, as the SDK verifier does.
 
 ## Next
 

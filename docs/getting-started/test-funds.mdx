@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Test Funds on Sandbox
 
-Sandbox runs on real test networks — Sui **testnet** and Solana **devnet** — so wallets need test gas and test USDC.
+Sandbox runs on a real test network — Sui **testnet** — so wallets need test SUI gas and test USDC.
 
 ## The easy way: sandbox faucet
 
@@ -16,7 +16,7 @@ curl -X POST https://sandbox.rwa-api.tbook.com/v1/sandbox/faucet \
   -d '{"accountId": "acct_…"}'
 ```
 
-Funds test USDC and gas to the account's wallets where supported; the response reports per-chain results and links to public faucets for anything it could not fund. A **pre-funded demo account** also ships with your sandbox keys — ask your TBook contact.
+Requires a test or secret key (publishable keys get `403`). It requests test gas for the account's wallets where a programmatic faucet exists (Sui testnet), and the response reports per-chain results plus links to public faucets for everything it cannot fund directly — including test USDC. Ask your TBook contact about a **pre-funded demo account**.
 
 ## Public faucets
 
@@ -27,17 +27,12 @@ Funds test USDC and gas to the account's wallets where supported; the response r
 | SUI gas | `sui client faucet` or the [Sui testnet faucet](https://faucet.sui.io) |
 | Test USDC | Circle's testnet faucet ([faucet.circle.com](https://faucet.circle.com)) — select Sui testnet |
 
-### Solana devnet
-
-| What | Where |
-|---|---|
-| SOL gas | `solana airdrop 2 --url devnet` |
-| Test USDC | [faucet.circle.com](https://faucet.circle.com) — select Solana devnet |
-
 :::note
-Use the **canonical Circle test USDC** mints — the exact token types accepted by each vault are listed in the vault's `addresses` in [`GET /v1/vaults/:vaultId`](/api-reference/vault-endpoints). Tokens from third-party faucets with different mints will not work.
+Use the **canonical Circle test USDC** coin type on Sui testnet — vaults only accept it. Tokens from third-party faucets with a different coin type will not work.
 :::
+
+The legacy Solana rail is frozen (`rcusdp-sol` is paused, so no new deposits) — you do not need Solana devnet funds. If an old integration still needs to exit devnet balances, [faucet.solana.com](https://faucet.solana.com) provides SOL gas.
 
 ## Settlement on sandbox
 
-Settlement cycles run **daily** on sandbox, and on demand via [`POST /v1/sandbox/settle`](/api-reference/sandbox) — so you can test the full deposit → settle → redeem → claim loop in minutes instead of waiting for T+1.
+Settlement cycles on sandbox are operator-run, and you can trigger one on demand via [`POST /v1/sandbox/settle`](/api-reference/sandbox) — so you can test the full deposit → settle → redeem → claim loop in minutes instead of waiting for T+1.

@@ -35,7 +35,7 @@ const HEADERS = {
 ```ts
 const { data: assets } = await fetch(`${BASE}/v1/assets`, { headers: HEADERS })
   .then(r => r.json());
-// → rcusdp 8.32% APY (T+1) · xaua gold (T+3)
+// → rcusdp (USD yield, live price/apy, T+1) · xaua (gold, T+3)
 ```
 
 **Step 2 — register the user once** (at signup, after your KYC):
@@ -63,7 +63,8 @@ const intent = await fetch(`${BASE}/v1/vaults/rcusdp-sui/tx/deposit`, {
   body: JSON.stringify({ accountId: account.accountId, amount: "100.00" }),
 }).then(r => r.json());
 
-const digest = await waas.signAndSubmit(intent.transaction);   // Crossmint, Privy, …
+// intent.transaction = { format: "sui:tx-bytes-base64", data: "<unsigned tx bytes>" }
+const digest = await waas.signAndSubmit(intent.transaction.data);   // Crossmint, Privy, …
 await fetch(`${BASE}/v1/transactions/${intent.intentId}/confirm`, {
   method: "POST", headers: HEADERS, body: JSON.stringify({ digest }),
 });
@@ -83,7 +84,7 @@ const earnings = await fetch(
 // earnings.profit, earnings.profitRateBps — display as "Interest earned"
 ```
 
-**Step 5 — update the UI from webhooks**, not polling: `transaction.deposit.settled` carries `externalId`, `shares`, `sharePrice`.
+**Step 5 — update the UI from webhooks**, not polling: `transaction.deposit.settled` carries `externalId`, `recordId`, and the exact `shares` credited.
 
 ---
 
@@ -93,6 +94,8 @@ const earnings = await fetch(
 
 ```ts
 // Allocation: 70% USD yield, 30% gold hedge
+// (xaua-sui deposits require the wallet to be issuer-whitelisted — a one-time
+// onboarding step; non-whitelisted wallets get 403 not_whitelisted at build time)
 for (const [vaultId, amount] of [["rcusdp-sui", "700000.00"], ["xaua-sui", "300000.00"]]) {
   const intent = await fetch(`${BASE}/v1/vaults/${vaultId}/tx/deposit`, {
     method: "POST",
@@ -100,7 +103,7 @@ for (const [vaultId, amount] of [["rcusdp-sui", "700000.00"], ["xaua-sui", "3000
     body: JSON.stringify({ accountId: TREASURY_ACCOUNT_ID, amount }),
   }).then(r => r.json());
 
-  await submitToSquadsProposal(intent.transaction);   // your multisig flow
+  await submitToMultisigProposal(intent.transaction);   // your Sui multisig flow
   // Note intent.expiresAt — coordinate signers before building (see Account Models)
 }
 ```
@@ -115,16 +118,16 @@ Monitor everything from the [analytics endpoints](/api-reference/analytics) (`/v
 
 **Scenario:** a "Savings" balance in your consumer app. Users see USD amounts growing; shares, cycles, and chains are invisible. One pooled wallet; **your core ledger keeps per-user balances**.
 
-The integration is three webhooooks-driven bookkeeping rules (see [Account Models — omnibus](/overview/account-models#omnibus--many-end-users-pooled-in-one-wallet) for the full contract):
+The integration is three webhook-driven bookkeeping rules (see [Account Models — omnibus](/overview/account-models#omnibus--many-end-users-pooled-in-one-wallet) for the full contract):
 
 ```ts
 // 1. User "adds to savings" → your ledger debits the user, and you batch-deposit from the pool
-// 2. On transaction.deposit.settled → book shares to users pro-rata at event's sharePrice
+// 2. On transaction.deposit.settled → book the settled shares to users pro-rata
 app.post("/webhooks/tbook", verifyTBookSignature, (req, res) => {
   const event = req.body;
   if (event.type === "transaction.deposit.settled") {
-    const { amount, shares, sharePrice } = event.data;
-    ledger.allocateShares({ amount, shares, sharePrice });   // YOUR sub-ledger, in shares
+    const { recordId, shares } = event.data;        // exact shares credited on-chain
+    ledger.allocateShares({ recordId, shares });    // YOUR sub-ledger, in shares
   }
   res.sendStatus(200);
 });
@@ -132,10 +135,10 @@ app.post("/webhooks/tbook", verifyTBookSignature, (req, res) => {
 // 3. Daily reconciliation: ledger total must equal the pool position
 const pool = await fetch(`${BASE}/v1/accounts/${POOL_ACCOUNT_ID}/positions`, { headers: HEADERS })
   .then(r => r.json());
-assert(ledger.totalShares() === pool.data[0].shares);   // alert on drift
+assert(ledger.totalShares() === Number(pool.data[0].shares));   // alert on drift
 ```
 
-Display each user's balance as `userShares × sharePrice` — yield shows up automatically as the share price rises.
+Display each user's balance as `userShares × sharePrice` (current price from `GET /v1/vaults/rcusdp-sui/price` or the positions response) — yield shows up automatically as the share price rises.
 
 ---
 

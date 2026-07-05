@@ -84,17 +84,17 @@ Paginated: `{data, nextCursor, hasMore}`.
 
 Supports `Idempotency-Key`. May:
 
-- **add a wallet** for a chain the account doesn't have yet (`wallets` is append-only per chain),
+- **add a wallet** for a chain the account doesn't have yet (`wallets` is append-only per chain; exactly **one** wallet per PATCH call),
 - update `compliance`,
 - update `channel`.
 
 May **not** change `type`, `externalId`, or any existing address — these return `invalid_request`. Wallet migration is a managed operations flow; contact TBook.
 
 ```bash
-# Add a Solana wallet to an existing Sui-only account
+# Attest KYC on an existing account before its first deposit
 curl -X PATCH $BASE/v1/accounts/acct_7f3a… \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"wallets": [{"chain": "solana", "address": "9xQe…"}]}'
+  -d '{"compliance": {"kyc": {"attested": true, "provider": "your-kyc", "ref": "kyc_123"}}}'
 ```
 
 ---

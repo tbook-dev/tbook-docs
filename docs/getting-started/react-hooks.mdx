@@ -5,29 +5,79 @@ sidebar_position: 8
 
 # React Hooks
 
-`@tbook-dev/vault-react` provides React Query–powered hooks and drop-in components over the client SDKs — positions, prices, and transaction flows without hand-rolled state management.
+`@tbookdev/vault-react-sui` provides headless, React Query–powered hooks over the Sui client SDK — vault state, balances, history, and transaction flows without hand-rolled state management. It ships hooks only (no pre-built UI components) and assumes your app already provides the `@mysten/dapp-kit` and `@tanstack/react-query` providers.
 
 :::info SDK release status
-Ships at **0.2.0** with the v1 sandbox release. Surfaces shown are indicative until published; the [REST contract](/api-reference) is normative.
+Published under the `@tbookdev` npm scope together with `@tbookdev/vault-sdk-sui`; npm publication is pending — until then, install from the monorepo. The [REST contract](/api-reference) is normative.
 :::
 
-```tsx
-// Indicative 0.2.0 surface
-import { TBookProvider, useAssets, usePositions, useDeposit } from "@tbook-dev/vault-react";
+## Setup
 
-function Earn({ accountId }: { accountId: string }) {
-  const { data: assets } = useAssets();                      // GET /v1/assets
-  const { data: positions } = usePositions(accountId);      // GET /v1/accounts/:id/positions
-  const deposit = useDeposit();                              // build → sign → confirm
+Wrap your app in `TBookSuiVaultProvider` inside your existing dapp-kit and React Query providers:
+
+```tsx
+import { getFullnodeUrl } from "@mysten/sui/client";
+import { SuiClientProvider, WalletProvider } from "@mysten/dapp-kit";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBookSuiVaultProvider } from "@tbookdev/vault-react-sui";
+
+const queryClient = new QueryClient();
+const networks = { testnet: { url: getFullnodeUrl("testnet") } };
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider>
+          <TBookSuiVaultProvider network="testnet" vaultId="rcusdp-sui">
+            <Earn />
+          </TBookSuiVaultProvider>
+        </WalletProvider>
+      </SuiClientProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+`vaultId` defaults to `rcusdp-sui`. By default (`txBuilderMode: "local-sdk"`) transactions are built client-side from on-chain state; set `txBuilderMode: "gateway-api"` (with `gatewayApiBaseUrl` and a `publishableKey`) to build through `POST /v1/vaults/:id/tx/*` instead, which also records and confirms a transaction intent on the gateway.
+
+## Reading and transacting
+
+```tsx
+import { useSuiVaultBalances, useSuiDeposit } from "@tbookdev/vault-react-sui";
+
+function Earn() {
+  const { data: position } = useSuiVaultBalances(); // connected wallet's shares + pending records
+  const deposit = useSuiDeposit();                  // build → wallet sign → execute
 
   return (
     <button
-      onClick={() => deposit.mutate({ vaultId: "rcusdp-sui", accountId, amount: "100.00" })}
+      onClick={() => deposit.mutate({ amount: "100.00" })}
+      disabled={deposit.isPending}
     >
-      Deposit
+      Deposit 100 USDC
     </button>
   );
 }
 ```
 
-Pre-built components (`DepositWidget`, `PortfolioCard`, `YieldBadge`, `TransactionHistory`) cover the common "Earn tab" UI — see [Use Cases](/overview/use-cases) for the patterns they implement.
+Amount inputs accept either a `bigint` in raw units (6 decimals) or a `string`/`number` in decimal UI units — `"100.00"` and `100_000_000n` are equivalent.
+
+## Hook reference
+
+| Hook | What it does |
+|---|---|
+| `useSuiVaultInfo()` | Vault state: fees (bps), pause flags, deposit/instant-redeem/cancel availability |
+| `useSuiVaultBalances()` | Connected wallet's position in the vault |
+| `useSuiUsdcBalance()` | Connected wallet's USDC balance |
+| `useSuiTransactionHistory()` | The wallet's deposit/redeem/claim records |
+| `useSuiDeposit()` | Mutation: deposit USDC (`{ amount }`) |
+| `useSuiRedeem()` | Mutation: redeem shares (`{ shares, mode?: "queued" \| "instant" }`) |
+| `useSuiClaim()` | Mutation: claim settled proceeds (`{ amount? }`) |
+| `useSuiCancelDeposit()` | Mutation: cancel a pending deposit (`{ recordId }`) |
+| `useRefreshSuiVaultData()` | Invalidate and refetch all vault queries |
+| `useTBookSuiVault()` | Access the resolved provider config |
+
+Action hooks run preflight checks against live vault state by default (paused vault, settlement windows) and refresh all queries on success; disable with `preflightChecks: false` on the provider. Amount conversion helpers (`parseDecimalAmount`, `formatRawAmount`, `toRawAmount`) are exported for building your own inputs. Instant-redeem availability and fees are operator-tunable on-chain — read them at runtime via `useSuiVaultInfo()` rather than hard-coding.
+
+For the UI patterns these hooks implement (Earn tab, portfolio card, activity feed), see [Use Cases](/overview/use-cases).

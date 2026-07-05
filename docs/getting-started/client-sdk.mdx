@@ -5,36 +5,43 @@ sidebar_position: 7
 
 # Client SDKs
 
-TypeScript SDKs for building and reading on each rail. They wrap the same REST contract — anything they do, you can also do with plain HTTP.
+TypeScript SDKs for building and reading on the Sui rail. They wrap the same contract as the REST API — anything they do, you can also do with plain HTTP.
 
 :::info SDK release status
-The SDK packages ship together with the v1 sandbox release at version **0.2.0** (npm, `@tbook-dev` scope). Surfaces shown here are indicative until the packages are published; the [REST contract](/api-reference) is the normative interface.
+The publish set is `@tbookdev/vault-sdk-sui`, `@tbookdev/vault-react-sui`, and `@tbookdev/vault-node` under the `@tbookdev` npm scope. npm publication is pending — until then, install the packages from the monorepo. The [REST contract](/api-reference) is the normative interface.
 :::
 
 ## Packages
 
-| Package | Rail / purpose |
+| Package | Purpose |
 |---|---|
-| `@tbook-dev/vault-sdk` | Solana rail: reads + unsigned transaction builders |
-| `@tbook-dev/vault-sdk-sui` | Sui rail: reads + unsigned PTB builders (rcUSDP vault, XAUa AlphaVault) |
-| `@tbook-dev/vault-react` | React hooks and drop-in components on top of the above |
-| `@tbook-dev/vault-node` | Server-side: webhook verification + typed API client |
+| `@tbookdev/vault-sdk-sui` | Sui rail: reads + unsigned PTB builders (rcUSDP vault, XAUa AlphaVault) |
+| `@tbookdev/vault-react-sui` | Headless React hooks on top of the Sui SDK — see [React Hooks](/getting-started/react-hooks) |
+| `@tbookdev/vault-node` | Server-side: typed API client + webhook verification — see [Server SDK](/getting-started/server-sdk) |
+
+:::note Legacy Solana rail (frozen)
+The Solana packages (`@tbookdev/vault-sdk`, `@tbookdev/vault-react`) are frozen and private — they are not part of the publish set. The `rcusdp-sol` vault is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel remain open for existing positions.
+:::
 
 ## What client SDKs are for
 
-Use a client SDK when you build transactions **in the browser** against a connected wallet (wallet-adapter / dapp-kit), rather than through your backend:
+Use `@tbookdev/vault-sdk-sui` when you build transactions **in the browser** (or any environment with your own signer) against a connected wallet, rather than through your backend. The SDK produces unsigned transaction bytes — no signing, no React:
 
 ```ts
-// Indicative 0.2.0 surface — Sui rail
-import { buildDeposit } from "@tbook-dev/vault-sdk-sui";
+import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { getSuiVaultConfig, buildDepositTx } from "@tbookdev/vault-sdk-sui";
 
-const { txBytesBase64, summary } = await buildDeposit({
-  vault: "rcusdp-sui",          // from GET /v1/assets
-  owner: wallet.address,
-  amount: "100.00",
-  network: "testnet",
+const client = new SuiClient({ url: getFullnodeUrl("testnet") });
+const vault = getSuiVaultConfig("rcusdp-sui", "testnet");
+
+// Amounts are raw USDC units (6 decimals): 100.00 USDC = 100_000_000n
+const { txBytesBase64, message } = await buildDepositTx(client, vault, {
+  sender: wallet.address,
+  amount: 100_000_000n,
 });
-// sign with @mysten/dapp-kit useSignAndExecuteTransaction
+// sign with @mysten/dapp-kit: useSignAndExecuteTransaction({ transaction: txBytesBase64 })
 ```
+
+The full builder set covers the rcUSDP lifecycle — `buildDepositTx`, `buildQueueRedeemTx`, `buildInstantRedeemTx`, `buildCancelDepositTx`, `buildClaimTx`, `buildTransferUsdcTx` — plus reads (`getUserPosition`, `getVaultState`, `getUserRecords`) and XAUa AlphaVault helpers (`getAlphaVaultConfig`, `buildSubscribeTx`, `buildRequestRedemptionTx`, `buildCancelRequestTx`, `buildClaimUsdcTx`, `getAlphaPosition`). Transient RPC failures can be wrapped with the exported `withRetry` helper.
 
 For server-driven integrations (most fintech apps, all omnibus/treasury setups), prefer the [REST API](/getting-started/rest-api) — it adds intent tracking, idempotency, and attribution automatically.

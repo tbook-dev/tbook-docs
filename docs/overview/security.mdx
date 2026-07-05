@@ -15,7 +15,7 @@ Security is layered through the platform — from smart contracts to API design 
 
 ## Multi-signature operations
 
-All vault operations on both chains require multisig approval (2-of-3 on the operational roles). No single party can move funds or change vault parameters unilaterally.
+Vault operations are gated by on-chain multi-signature approval across separated operational roles. No single party can move funds or change vault parameters unilaterally.
 
 | Role | Permissions | Purpose |
 |------|-------------|---------|
@@ -25,14 +25,14 @@ All vault operations on both chains require multisig approval (2-of-3 on the ope
 
 ## Audited contracts
 
-The Sui rcUSDP vault contract is independently audited by **ScaleBit/MoveBit** and has been live on Sui mainnet in production. Audit scope covered contract logic and state management, access control, fund-flow and accounting integrity, and edge-case behavior. Additional rails and assets go through the same gate before production exposure: the Solana gateway program and the XAUa AlphaVault each require their own audit before mainnet launch.
+The Sui rcUSDP vault contract is independently audited by **ScaleBit/MoveBit** and has been live on Sui mainnet in production. Audit scope covered contract logic and state management, access control, fund-flow and accounting integrity, and edge-case behavior. Additional assets go through the same gate before production exposure: the XAUa AlphaVault (live on testnet today) requires its own audit before mainnet launch.
 
 ## API-level protections
 
-- **Hashed API keys** with organization-scoped tenancy on every resource — one organization can never read another's accounts, webhooks, or events.
-- **Idempotency keys** on all money-movement endpoints prevent duplicate submissions.
-- **Webhook signatures** (HMAC-SHA256 with timestamp) let you verify every delivery; see [Webhooks](/webhooks).
-- **Rate limiting** per key, with explicit headers.
+- **Hashed API keys** (only a SHA-256 hash is stored) with organization-scoped tenancy on every resource — one organization can never read another's accounts, webhooks, or events.
+- **Idempotency keys** on all money-movement endpoints prevent duplicate submissions (same-key replays return the recorded response for 24 hours).
+- **Webhook signatures** (HMAC-SHA256 with timestamp) let you verify every delivery; secret rotation dual-signs deliveries during a 24-hour grace window. See [Webhooks](/webhooks).
+- **Rate limiting** per key, with explicit `X-RateLimit-*` and `Retry-After` headers.
 
 ## Pause & rollback safety
 
@@ -41,8 +41,8 @@ The Sui rcUSDP vault contract is independently audited by **ScaleBit/MoveBit** a
 
 ## On-chain verifiability
 
-All vault state is public and verifiable: total shares, vault balances, share-price history, every cycle settlement, and individual holdings. The API exposes the underlying contract addresses (read-only) in every vault detail response so you — or your auditors — can verify independently.
+All vault state is public and verifiable: total shares, vault balances, share-price history, every cycle settlement, and individual holdings. The underlying contract addresses are published in the open-source SDK configuration (`@tbookdev/vault-sdk-sui`) so you — or your auditors — can verify independently.
 
 ## 24-hour timelocks
 
-Critical changes sit behind 24-hour timelocks: vault role changes on-chain, and treasury allowlist additions at the API level. This guarantees a review window before any sensitive change takes effect.
+Treasury allowlist additions activate only after a 24-hour timelock at the API level, and sensitive vault configuration changes are similarly timelocked on-chain. This guarantees a review window before any sensitive change takes effect.

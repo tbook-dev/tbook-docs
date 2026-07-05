@@ -14,24 +14,24 @@ The platform decouples three things that other systems hard-wire together:
 - **Vaults** — an asset made investable on a specific rail. One asset can have several vaults.
 
 ```
-                 ┌──────────────────────  Asset (native on Sui)  ─────────────────────┐
-                 │                                                                    │
-USDC on Sui ───────────► sui:direct rail ───────────► rcusdp-sui / xaua-sui           │
-                 │        (same chain, no bridge)                                     │
-                 │                                                                    │
-USDC on Solana ────────► solana:gateway rail ───────► rcusdp-sol                      │
-                 │        (gateway program + Circle CCTP,                             │
-                 │         bridging handled entirely by TBook)                        │
-                 └────────────────────────────────────────────────────────────────────┘
+                 ┌──────────────────  Asset (native on Sui)  ──────────────────┐
+                 │                                                             │
+USDC on Sui ───────────► sui:direct rail ───────────► rcusdp-sui / xaua-sui    │
+                 │        (same chain, no bridge)                              │
+                 └─────────────────────────────────────────────────────────────┘
 ```
 
-If your users hold USDC on Sui, deposits go **straight into the Sui vault — no bridge, no extra latency**. If they hold USDC on Solana, the gateway rail accepts the deposit on Solana and TBook operates the cross-chain leg invisibly. Your integration code is identical either way; only the `vaultId` and settlement timing differ.
+Your users' USDC sits on Sui, the same chain as the assets, so deposits go **straight into the vault — no bridge, no extra latency**. Your integration code is identical across vaults; only the `vaultId` and settlement timing differ.
 
 New chains and new assets appear as new vault entries in the [asset catalog](/api-reference/vault-endpoints) — your integration does not change.
 
+:::note Legacy Solana rail (frozen)
+A `solana:gateway` rail (`rcusdp-sol`) predates the Sui-native integration and is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so any remaining balances can exit. Legacy Solana read endpoints remain available.
+:::
+
 ## Settlement cycles
 
-Every vault settles in **cycles**. Requests accumulate while a cycle is `accepting`; at the cutoff the cycle closes and moves to `processing` (assets are deployed to, or withdrawn from, the underlying RWA strategy); when results are final the cycle **settles** and balances update.
+Every vault settles in **cycles**. Requests accumulate while a cycle is open; at the cutoff the operator closes the batch and deploys assets to, or withdraws them from, the underlying RWA strategy; when results land on-chain the indexer emits the per-account `transaction.*.settled` events and balances update. (Platform-wide `vault.cycle.*` events exist in the contract for cycle-level signals; the per-account `transaction.*` events are the reliable per-user notification.)
 
 Cycles exist because real-world assets take real time to subscribe and redeem (T-bills settle T+1; gold subscription via the issuer settles T+3), and because batching makes settlement cheaper and easier to verify on-chain.
 
@@ -39,24 +39,24 @@ You never manage cycles. You observe them:
 
 | Where | What you see |
 |---|---|
-| `GET /v1/vaults/:vaultId` | `currentCycle: {number, status: accepting \| processing, cutoffAt, expectedSettlementAt}` |
-| Positions & transactions | `settlementCycle` on every pending record and intent |
-| Webhooks | `vault.cycle.closed` → `vault.cycle.settled` (or `vault.cycle.rolled_back`), plus per-account `transaction.*.settled` events |
+| `GET /v1/vaults/:vaultId` | The vault's settlement design (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`, `settlement.instantRedeem`) plus live `status`, `paused`, `sharePrice`, and `apy` |
+| Positions & transactions | Pending deposits/redeems (with `recordId`) on `GET …/positions`; indexed rows on `GET …/transactions` |
+| Webhooks | Per-account `transaction.*.confirmed` / `transaction.*.settled` events (subscribe to these); platform-wide `vault.cycle.*` where emitted |
 
 ### What your user experiences
 
 | Action | Immediately | After the cycle settles |
 |---|---|---|
-| Deposit | "Processing — will settle T+1" (cancelable) | Shares credited; `transaction.deposit.settled` webhook with exact shares and price |
+| Deposit | "Processing — will settle T+1" (cancelable) | Shares credited; `transaction.deposit.settled` webhook with the exact shares credited |
 | Redeem (queued) | "Processing redemption" | USDC claimable; `transaction.redeem.settled` webhook |
 | Claim | USDC arrives in the account's own wallet immediately | — |
-| Instant redeem (`rcusdp-sui` only) | USDC immediately, at a higher fee | — |
+| Instant redeem (`rcusdp-sui`, when enabled) | USDC immediately, at a higher fee | — |
 
-Timing per vault is published in the catalog (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`) — currently T+1 for rcUSDP vaults and T+3 for `xaua-sui` (cutoff 10:00 UTC).
+Timing per vault is published in the catalog (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`) — currently T+1 for `rcusdp-sui` and T+3 for `xaua-sui` (cutoff 10:00 UTC). Instant-redeem availability and its fee are operator-controlled **on-chain** and can change at any time — treat the catalog values as indicative, and handle a rejected instant redemption gracefully (fall back to a queued redemption).
 
 ## The transaction model: build → sign → submit → confirm
 
-1. **Build** — `POST /v1/vaults/:vaultId/tx/deposit` (or redeem/claim/cancel) returns an **unsigned** transaction plus an `intentId`.
+1. **Build** — `POST /v1/vaults/:vaultId/tx/deposit` (or `tx/redeem`, `tx/claim`, `tx/cancel-deposit`) returns an **unsigned** transaction plus an `intentId`.
 2. **Sign & submit** — your wallet infrastructure signs: a WaaS provider for `individual` accounts, your backend key for `omnibus`, a multisig flow for `treasury`/`business`. You submit to the chain RPC.
 3. **Confirm** — optionally report the digest back (`POST /v1/transactions/:intentId/confirm`) for instant status tracking; TBook's indexer also detects the transaction on-chain within about a minute either way.
 4. **Settle** — the settlement cycle completes and the intent reaches `settled`; webhooks notify you at each step.
@@ -65,7 +65,7 @@ This is why the platform is non-custodial: TBook can *propose* transactions but 
 
 ## Prices and yield
 
-Each asset's `price` is its NAV per share/unit, refreshed from the asset's NAV source and exposed in the catalog and `GET /v1/vaults/:vaultId/price`. For yield assets, `apy` is published alongside. Your users' earnings are computed from indexed history and live positions — see [Positions & Earnings](/api-reference/positions-earnings) for the exact formulas.
+Each asset's `price` is its NAV per share/unit, exposed in the catalog and `GET /v1/vaults/:vaultId/price`. Where a live NAV source is wired (rcUSDP), the value is refreshed at request time; assets without a live feed yet return their catalog reference price. For yield assets, `apy` is published alongside. Your users' earnings are computed from indexed history and live positions — see [Positions & Earnings](/api-reference/positions-earnings) for the exact formulas.
 
 ## Next steps
 

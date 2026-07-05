@@ -11,10 +11,11 @@ The path from first sandbox call to production keys. Your TBook contact tracks t
 
 - [ ] **Keys received** — `tbk_test_*` issued; you can call `GET /v1/assets`.
 - [ ] **Account model chosen** — `individual` / `omnibus` / `treasury` / `business` per product line ([guide](/overview/account-models)); custody approach confirmed (WaaS provider, backend keys, or multisig).
+- [ ] **Compliance attestations wired** — `compliance.kyc.attested` (individual/omnibus) or `compliance.kyb.attested` (business) set before the first deposit; unattested deposits return 403.
 - [ ] **Quickstart completed** — full deposit → settle → webhook → positions loop on `rcusdp-sui` ([Quickstart](/getting-started/quickstart)).
-- [ ] **Webhook endpoint live** — signature verification passing (we will send a test event), idempotent consumption keyed on `event.id`.
+- [ ] **Webhook endpoint live** — signature verification passing against real sandbox deliveries (trigger a deposit and `POST /v1/sandbox/settle`), idempotent consumption keyed on `event.id`.
 - [ ] **Full cycle on your integration** — deposit, queued redeem, claim, and cancel-deposit executed through *your* code, not curl.
-- [ ] **Error handling reviewed** — `cycle_closed` retry, `expiresAt` rebuild, idempotency keys on all money movements.
+- [ ] **Error handling reviewed** — `cycle_closed` retry, `expiresAt` rebuild, 409 `vault_paused` handling, idempotency keys on all money movements.
 - [ ] **Omnibus only:** reconciliation demonstrated — your sub-ledger total equals the pool position across two settlement cycles, including a simulated rollback reversal.
 - [ ] **Treasury/business only:** allowlist + (if enabled) dual-approval flow exercised; multisig signing within `expiresAt` confirmed.
 - [ ] **XAUa only:** whitelist process agreed (pool/treasury wallet whitelisted, or individual batch flow scheduled).
