@@ -1,0 +1,53 @@
+# Docs CI + deploy.
+#
+# Pull requests: build must pass — Docusaurus fails on broken links/anchors
+# (onBrokenLinks: 'throw'), so stale cross-references can't merge. An
+# English-only guard rejects CJK characters anywhere in docs/ or src/.
+#
+# Push to master: rebuild and publish build/ to the gh-pages branch (the
+# existing GitHub Pages source), so the live site always reflects master.
+# Replaces the manual `npm run deploy` flow.
+name: docs
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: English-only guard (no CJK characters)
+        run: |
+          if grep -rInP '[\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}]' docs src; then
+            echo "::error::CJK characters found — the public docs must be English-only"
+            exit 1
+          fi
+
+      - name: Build (fails on broken links/anchors)
+        run: npm run build
+
+      - name: Deploy to gh-pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build
