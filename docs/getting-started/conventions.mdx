@@ -38,6 +38,7 @@ Quote `requestId` in support requests. Error codes:
 | `below_min_deposit` | 400 | Amount under the vault's `minDeposit` |
 | `insufficient_balance` | 400 | Nothing claimable, not enough USDC, or the wallet has no gas coin to build the transaction |
 | `insufficient_shares` | 400 | Redeem amount exceeds available shares |
+| `upstream_unavailable` | 502 | An upstream chain RPC request failed — currently only the legacy Solana reads, which proxy a public devnet RPC. Retryable; prefer the current `/v1/vaults` and `/v1/accounts` reads |
 | `internal_error` | 500 | Our fault; safe to retry with the same idempotency key |
 
 ## Idempotency
