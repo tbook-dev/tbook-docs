@@ -65,7 +65,7 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
 
 **Extra errors:** `insufficient_balance` (nothing claimable).
 
-## POST /v1/vaults/:vaultId/tx/cancel-deposit {#cancel-deposit}
+## POST /v1/vaults/:vaultId/tx/cancel-deposit {/* #cancel-deposit */}
 
 **Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings). Allowed only while that record's cycle is still `accepting`. `rcusdp-sol` charges `cancelFeeBps` (0.1%).
 
