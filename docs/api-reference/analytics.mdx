@@ -29,7 +29,7 @@ User-count time series. Counts `individual` and `business` accounts.
 
 ## GET /v1/analytics/aum
 
-Assets under management snapshot. **Query:** `groupBy=asset|chain|channel|accountType`, `at=` (date; defaults to the latest daily snapshot).
+Assets under management snapshot. **Query:** `groupBy=asset|chain|channel|accountType` (default `asset`), `at=` (`latest` or `YYYY-MM-DD`; defaults to the latest daily snapshot).
 
 ```json
 {
@@ -37,23 +37,26 @@ Assets under management snapshot. **Query:** `groupBy=asset|chain|channel|accoun
   "total": "1250000.00",
   "currency": "USDC",
   "breakdown": [
-    { "key": "rcusdp", "value": "1100000.00", "share": "0.88" },
-    { "key": "xaua",   "value": "150000.00",  "share": "0.12" }
+    { "key": "rcusdp", "value": "1100000.00", "share": "0.8800" },
+    { "key": "xaua",   "value": "150000.00",  "share": "0.1200" }
   ]
 }
 ```
 
 ## GET /v1/analytics/yield
 
-Accrued profit and weighted APY per group. **Query:** `groupBy=asset|channel`, `from=`, `to=`.
+Accrued profit and weighted APY per group. **Query:** `groupBy=asset|channel` (default `asset`), `from=`, `to=`.
 
 ```json
 {
   "data": [
     { "key": "rcusdp", "accruedProfit": "8210.55", "weightedApy": "8.31", "avgAum": "1080000.00" }
-  ]
+  ],
+  "window": { "from": "2026-05-15", "to": "2026-06-14" }
 }
 ```
+
+Method: `accruedProfit = endValue − startValue − netFlows`; `weightedApy` annualizes it over average AUM and is returned as a **percentage string with 2 decimals** (`"8.31"` = 8.31% APY — do not multiply by 100 again). Requires at least two snapshot dates in range; otherwise the response is `{ "data": [], "note": "needs at least two snapshots in range" }`.
 
 ## GET /v1/analytics/flows
 

@@ -15,15 +15,16 @@ Manage webhook endpoints and read the event log. Secret key required. For payloa
 
 | Field | Notes |
 |---|---|
-| `url` | HTTPS only. Must resolve to a public address — private, link-local, and cloud-metadata IP ranges are rejected (`invalid_request`). |
-| `events[]` | Event names or wildcards: `["transaction.*", "vault.*"]`. See the [event catalog](/webhooks/event-types). |
+| `url` | HTTPS only. Localhost, private, link-local, and cloud-metadata addresses are rejected at registration (`invalid_request`). |
+| `events[]` | Event names or wildcards: `"*"` or `"<namespace>.*"` over the `transaction` / `account` / `treasury` / `vault` namespaces, e.g. `["transaction.*", "vault.*"]`. See the [event catalog](/webhooks/event-types). |
 
 ```json
 {
   "id": "wh_01h…",
   "url": "https://your-server.example/tbook",
   "events": ["transaction.*", "vault.*"],
-  "secret": "whsec_…"
+  "secret": "whsec_…",
+  "createdAt": "2026-06-15T08:00:00Z"
 }
 ```
 
@@ -31,7 +32,7 @@ Manage webhook endpoints and read the event log. Secret key required. For payloa
 
 ## GET /v1/webhooks
 
-List endpoints (secrets masked).
+List endpoints as `{webhooks: […]}` (secrets are never returned again).
 
 ## PATCH /v1/webhooks/:id
 
@@ -43,32 +44,33 @@ Stop deliveries immediately.
 
 ## POST /v1/webhooks/:id/rotate-secret
 
-Returns a new secret. The old secret stays valid for **24 hours in parallel** so you can roll your servers without dropping verification.
+Returns `{secret, previousSecretValidUntil}`. The old secret stays valid for **24 hours in parallel** — during the grace window every delivery carries **two `v1=` signatures** (new secret first), so verifiers that accept any matching `v1` keep working while you roll your servers.
 
 ---
 
 ## GET /v1/events
 
-Your organization's event log — also the **polling fallback** if your endpoint was down past the retry window.
+Your organization's event log (plus platform-wide `vault.*` events) — also the **polling fallback** if your endpoint was down past the retry window.
 
-**Query:** `type=`, `from=`, `limit=`, `cursor=`.
+**Query:** `after=` (event id to resume from) · `types=` (comma-separated event types) · `limit=` (default 50, max 200).
 
 ```json
 {
-  "data": [
+  "events": [
     {
       "id": "evt_01h…",
+      "orgId": "org_…",
       "type": "transaction.deposit.settled",
       "created": "2026-06-15T08:14:05Z",
       "data": { "intentId": "txi_…", "accountId": "acct_…", "amount": "100.00" },
       "deliveries": [
         { "webhookId": "wh_01h…", "status": "delivered", "attempts": 1,
-          "lastAttemptAt": "2026-06-15T08:14:06Z" }
+          "statusCode": 200, "lastAttemptAt": "2026-06-15T08:14:06Z" }
       ]
     }
   ],
-  "nextCursor": null, "hasMore": false
+  "hasMore": false
 }
 ```
 
-`deliveries[].status`: `delivered` · `retrying` · `failed`. Consume idempotently keyed on `event.id` — the same event can be delivered more than once.
+Cursor through the log by passing the last event's `id` as `after`. `deliveries[].status`: `pending` · `delivered` · `retrying` · `failed`. Consume idempotently keyed on `event.id` — the same event can be delivered more than once.

@@ -17,8 +17,8 @@ You integrate once. Your users (or your treasury desk) deposit USDC, hold yield-
 | **Organization** | The legal entity that contracts with TBook and owns API keys — a fintech, a corporate treasury client, an asset manager. Everything (accounts, webhooks, analytics, limits) is scoped to your organization through your API key. There is no `orgId` parameter anywhere: the key *is* the identity. |
 | **Account** | An investment principal under your organization. Four types — `individual`, `omnibus`, `treasury`, `business` — explained in [Account Models](/overview/account-models). Every position belongs to exactly one account. |
 | **Asset** | An RWA product: `rcusdp` (USD yield backed by tokenized T-bill / money-market strategies) or `xaua` (tokenized gold, 1 token = 1 gram). Assets are native on Sui. |
-| **Rail** | How funds reach the asset, determined by where the account's USDC lives: `sui:direct` (same chain, no bridge — the primary rail) or `solana:gateway` (Solana USDC routed through TBook's gateway program and Circle CCTP). |
-| **Vault** | An investable instance of an asset on a rail: `rcusdp-sui`, `rcusdp-sol`, `xaua-sui`. The API shape is identical on every rail; only settlement timing differs. |
+| **Rail** | How funds reach the asset. The primary rail is `sui:direct` — the account's USDC is on Sui, the same chain as the asset, so there is no bridge. A legacy `solana:gateway` rail exists but is frozen (see below). |
+| **Vault** | An investable instance of an asset on a rail: `rcusdp-sui` and `xaua-sui` are active; `rcusdp-sol` is a legacy vault that is paused. The API shape is identical on every rail; only settlement timing differs. |
 | **Transaction model** | Build → sign → submit → confirm. The API returns **unsigned** transactions; a wallet-as-a-service provider (e.g. Crossmint), your multisig, or your own keys sign and submit them. |
 
 ## Settlement is asynchronous
@@ -27,15 +27,19 @@ Deposits and redemptions are processed in **settlement cycles** (T+1 for rcUSDP,
 
 See [Core Flows](/resources/core-flows) for the normative lifecycle of every operation.
 
+:::note Legacy Solana rail (frozen)
+The `rcusdp-sol` vault (`solana:gateway` rail) is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so existing balances can always exit. New integrations should target the Sui vaults.
+:::
+
 ## Key properties
 
 | Property | Description |
 |---|---|
 | **Non-custodial** | Unsigned-transaction API; your keys, your custody choices. Claims can only pay out to the account's own wallet — enforced on-chain. |
 | **Chain-agnostic by design** | Assets, rails, and funding currency are decoupled. New chains and assets slot into the same API without changing your integration. |
-| **Multisig protected** | Vault operations require multisig approval on both chains. |
+| **Multisig protected** | Vault operations require on-chain multisig approval. |
 | **Audited** | The Sui rcUSDP vault contract is third-party audited (ScaleBit/MoveBit) and live on mainnet. |
-| **On-chain verifiable** | Vault state, share balances, and settlements are independently verifiable on-chain; contract addresses are exposed read-only in the API. |
+| **On-chain verifiable** | Vault state, share balances, and settlements are independently verifiable on-chain; the contract addresses are published in the open-source SDK configuration (`@tbookdev/vault-sdk-sui`). |
 
 ## Where to go next
 

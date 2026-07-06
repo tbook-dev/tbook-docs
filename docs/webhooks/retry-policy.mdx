@@ -13,20 +13,20 @@ sidebar_position: 3
 | 4xx | Treated as permanent rejection of this delivery — no retry |
 | 5xx or timeout (10 s) | Retried |
 
-**Retry schedule:** 1 minute → 5 minutes → 30 minutes after the initial attempt. After the final failure the delivery is marked `failed` and surfaces in [`GET /v1/events`](/api-reference/webhook-endpoints#get-v1events) (`deliveries[].status`).
+**Retry schedule:** 1 minute → 5 minutes → 30 minutes after the initial attempt — **4 attempts total**. After the final failure the delivery is marked `failed` and surfaces in [`GET /v1/events`](/api-reference/webhook-endpoints#get-v1events) (`deliveries[].status`).
 
-Each delivery (including retries) is signed with a fresh timestamp, so signature verification keeps working.
+Each delivery (including retries) is signed with a fresh timestamp, so signature verification keeps working. Retries are driven by a durable sweep, so the schedule is a minimum delay, not an exact clock.
 
 ## Polling fallback
 
-`GET /v1/events` is the catch-up mechanism — your organization's full event log with per-endpoint delivery status:
+`GET /v1/events` is the catch-up mechanism — your organization's full event log with per-endpoint delivery status. Parameters: `types` (comma-separated event types), `after` (last processed event id), `limit` (default 50, max 200); the response is `{events, hasMore}` with `deliveries[]` on each event.
 
 ```bash
-curl "$BASE/v1/events?type=transaction.deposit.settled&limit=50" \
+curl "$BASE/v1/events?types=transaction.deposit.settled&limit=50" \
   -H "Authorization: Bearer $TBK_SECRET_KEY"
 ```
 
-Recommended pattern: persist the last processed `evt_` id; on webhook gaps (deploys, outages), page through `/v1/events` until you are caught up. Events are retained for 30 days.
+Recommended pattern: persist the last processed `evt_` id; on webhook gaps (deploys, outages), page through `/v1/events` with `after` until `hasMore` is false. The poll feed also carries operational marker events that are never pushed to webhooks — currently `sandbox.settle.requested`. Retention is bounded — treat the feed as a catch-up mechanism, not an archive.
 
 ## Best practices
 

@@ -13,7 +13,7 @@ Background: a `claim` always pays the account's **own** wallet — that is guara
 2. If your organization has **dual approval** enabled, every withdrawal must be approved by a **different API key** than the one that created it.
 3. The approved withdrawal yields an unsigned transfer transaction — your multisig signs it like any other transaction.
 
-Withdrawal lifecycle: `pending_approval → approved → built → submitted → confirmed`, alternates `rejected` / `expired` (approvals are valid 24 h). Without dual approval, withdrawals start at `built`.
+Withdrawal lifecycle: `pending_approval → built → submitted → confirmed`, with `expired` when the 24-hour approval window lapses. A successful approval builds the transfer immediately, so the status moves straight to `built`; on-chain progress is tracked through the withdrawal's `intentId`. Without dual approval, withdrawals start at `built`.
 
 ---
 
@@ -21,21 +21,19 @@ Withdrawal lifecycle: `pending_approval → approved → built → submitted →
 
 Add a destination address. Supports `Idempotency-Key`.
 
-**Body:** `{accountId, chain, address, label?}`
+**Body:** `{accountId, chain, address, label?}` — `label` ≤128 chars.
 
 ```json
-{ "id": "al_01h…", "accountId": "acct_…", "chain": "sui", "address": "0xdef…",
-  "label": "Ops cold wallet", "status": "pending_activation",
-  "activatesAt": "2026-06-16T08:00:00Z" }
+{ "id": "al_01h…", "status": "pending_activation", "activatesAt": "2026-06-16T08:00:00Z" }
 ```
 
-The `treasury.allowlist.activated` webhook fires when the timelock elapses.
+Activation is lazy: an entry flips from `pending_activation` to `active` the first time it is read or used after the timelock elapses, and the `treasury.allowlist.activated` webhook fires then.
 
 **Errors:** `conflict` (address already listed for this account) · `invalid_request` (account is not `treasury`/`business`).
 
 ## GET /v1/treasury/allowlist?accountId=…
 
-List entries (all statuses). Paginated.
+List entries as `{data: […]}`.
 
 ## DELETE /v1/treasury/allowlist/:id
 
@@ -47,12 +45,12 @@ Removal is immediate (removing an address is risk-reducing; only additions are t
 
 Create a withdrawal. Supports `Idempotency-Key`.
 
-**Body:** `{accountId, allowlistId, amount}` — the allowlist entry must be `active`.
+**Body:** `{accountId, allowlistId, amount}` — `amount` is a positive decimal string; the allowlist entry must be `active`.
 
-- With dual approval: response `{id: "twd_…", status: "pending_approval"}` and a `treasury.withdrawal.pending_approval` webhook fires.
+- With dual approval: response `{id: "twd_…", status: "pending_approval", amount}` and a `treasury.withdrawal.pending_approval` webhook fires.
 - Without: response includes `status: "built"`, an `intentId`, and the unsigned `transaction` immediately.
 
-**Errors:** `invalid_request` (entry pending/removed) · `insufficient_balance`.
+**Errors:** `invalid_request` (entry still inside the 24 h timelock) · `not_found` (entry unknown, removed, or belongs to a different account).
 
 ## POST /v1/treasury/withdrawals/:id/approve
 
@@ -61,17 +59,15 @@ Must be called with a **different secret key** than the creator's — same key r
 ```json
 {
   "id": "twd_01h…", "status": "built", "intentId": "txi_…",
-  "transaction": { "format": "sui:tx-bytes-base64", "data": "…" },
-  "summary": { "amount": "5000.00", "destination": "0xdef…" },
-  "expiresAt": "…"
+  "transaction": { "format": "sui:tx-bytes-base64", "data": "…" }
 }
 ```
 
-Sign and submit like any transaction; track via the intent. Approvals expire after 24 h (`status: "expired"`).
+Sign and submit like any transaction; track on-chain progress via the `intentId`. A `treasury.withdrawal.approved` webhook fires. Approvals expire after 24 h (`status: "expired"`, `invalid_request` on a late approve).
 
 ## GET /v1/treasury/withdrawals
 
-**Query:** `accountId=`, `status=`, `limit=`, `cursor=`. Items include `approvals[] {keyPrefix, at}` for audit.
+**Query:** `accountId=`, `status=`, `limit=` (default 20, max 100). Items include `approvals[] {keyId, keyPrefix, at}` for audit.
 
 ---
 

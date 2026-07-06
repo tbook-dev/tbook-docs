@@ -5,7 +5,7 @@ sidebar_position: 2
 
 # Event Catalog
 
-All events share the [envelope](/webhooks#payload-envelope) `{id, type, created, data}`. Per-account events include `accountId` and your `externalId`.
+All events share the [envelope](/webhooks#payload-envelope) `{id, type, created, data}`. Per-account `transaction.*` events include `accountId`, your `externalId`, `vaultId`, the on-chain `digest`, and the `intentId` when the transaction was built through the API. Fields not listed as guaranteed may be absent — parse leniently.
 
 ## Transaction events (per account)
 
@@ -18,11 +18,13 @@ Deposit transaction observed on-chain. Funds are in the current settlement cycle
   "id": "evt_01h…", "type": "transaction.deposit.confirmed", "created": "…",
   "data": {
     "intentId": "txi_01h…", "accountId": "acct_7f3a…", "externalId": "user-8492",
-    "vaultId": "rcusdp-sui", "amount": "100.00", "digest": "8vJk…",
-    "settlementCycle": 6
+    "vaultId": "rcusdp-sui", "recordId": "42",
+    "amount": "100.000000", "digest": "8vJk…"
   }
 }
 ```
+
+Keep `recordId` — it is what [`tx/cancel-deposit`](/resources/core-flows) takes on the Sui rail. On XAUa subscriptions, `amount` is the net (post-fee) USDC and a `fee` field reports the subscription fee withheld. A `settlementCycle` number is included on rails that expose cycle numbering.
 
 **Suggested UI:** "Processing — settles T+1."
 
@@ -35,21 +37,21 @@ Shares credited.
   "type": "transaction.deposit.settled",
   "data": {
     "intentId": "txi_01h…", "accountId": "acct_7f3a…", "externalId": "user-8492",
-    "vaultId": "rcusdp-sui", "amount": "100.00",
-    "shares": "97.31", "sharePrice": "1.0275", "settlementCycle": 6
+    "vaultId": "rcusdp-sui", "recordId": "42",
+    "shares": "97.310000", "digest": "9mQr…"
   }
 }
 ```
 
-**Suggested UI:** "Your deposit is now earning." **Omnibus:** this is your booking trigger — allocate `shares` in your sub-ledger at `sharePrice`.
+**Suggested UI:** "Your deposit is now earning." **Omnibus:** this is your booking trigger — allocate `shares` in your sub-ledger. For the cycle's share price, read [`GET /v1/vaults/:vaultId/price`](/api-reference/vault-endpoints) at settlement time.
 
 ### transaction.deposit.cancelled
 
-User cancel **or** cycle rollback (`reason: "user_cancel" | "rollback"`). On rollback the amount is back in the wallet (direct rail) or claimable (gateway rail). Omnibus: reverse the pending allocation in your ledger.
+Cancel transaction confirmed **or** cycle rollback (`reason: "cancelled" | "rollback"`). Data includes the returned `amount` and, on a user cancel, the `fee` withheld. On rollback the amount is back in the wallet (direct rail) or claimable (legacy gateway rail). Omnibus: reverse the pending allocation in your ledger.
 
 ### transaction.redeem.confirmed / transaction.redeem.settled
 
-Redemption queued / proceeds claimable. `settled` data includes `claimable` (USDC) and `settlementCycle`.
+Redemption queued / proceeds claimable. `confirmed` data includes the locked `shares` (plus `estimatedProceeds` on `rcusdp-sui`); `settled` data includes `claimable` (USDC).
 
 **Suggested UI on `settled`:** "Withdrawal ready" with a claim action.
 
@@ -57,32 +59,44 @@ Redemption queued / proceeds claimable. `settled` data includes `claimable` (USD
 
 USDC paid to the account's own wallet. Data: `amount`, `digest`.
 
-## Vault events (organization-wide)
+## Vault events (platform-wide)
 
 ### vault.cycle.closed / vault.cycle.settled / vault.cycle.rolled_back
 
-A settlement cycle changed state. Data: `vaultId`, `settlementCycle`, totals (`totalDeposits`, `totalRedeems`, and on `settled` the final `sharePrice`).
+A settlement cycle changed state. Data: `vaultId`, `cycleKind` (`"deposit"` or `"redeem"` — deposit and redeem cycles progress independently), a `settlementCycle` number where the rail exposes one, and cycle totals: `totalAmount`/`mintedShares` on deposit cycles, `totalShares`/`netProceeds` (and any `fee`) on redeem cycles.
 
-Per-account `transaction.*.settled` events follow `vault.cycle.settled` for every affected account — most apps only need the per-account events; the cycle events are useful for ops dashboards and omnibus reconciliation.
+```json
+{
+  "type": "vault.cycle.settled",
+  "data": {
+    "vaultId": "rcusdp-sui",
+    "cycleKind": "deposit",
+    "totalAmount": "12500.000000",
+    "mintedShares": "12180.450000"
+  }
+}
+```
+
+Per-account `transaction.*.settled` events accompany `vault.cycle.settled` for every affected account — most apps only need the per-account events; the cycle events are useful for ops dashboards and omnibus reconciliation.
 
 ### vault.price.updated
 
-NAV changed. Data: `vaultId`, `price`, `apy`, `asOf`.
+NAV changed. Data: `vaultId` plus the raw on-chain price-sync fields. Treat it as a trigger: read the normalized `price`/`apy` from [`GET /v1/vaults/:vaultId/price`](/api-reference/vault-endpoints).
 
 ### vault.paused / vault.unpaused
 
-Disable/enable deposit & redeem actions in your UI. Claims keep working while paused.
+Disable/enable deposit & redeem actions in your UI. Claims and cancel-deposits keep working while paused.
 
 ## Account & treasury events
 
 | Type | Fires when | Key `data` fields |
 |---|---|---|
 | `account.created` | account registered | `accountId`, `externalId`, `type` |
-| `treasury.allowlist.activated` | 24 h timelock elapsed | `id`, `accountId`, `address`, `chain` |
-| `treasury.withdrawal.pending_approval` | withdrawal awaits a second key | `id`, `accountId`, `amount` |
-| `treasury.withdrawal.approved` | approved; unsigned tx available | `id`, `intentId` |
-| `treasury.withdrawal.confirmed` | transfer on-chain | `id`, `amount`, `address`, `digest` |
+| `treasury.allowlist.activated` | 24 h timelock elapsed | `id`, `accountId`, `address` |
+| `treasury.withdrawal.pending_approval` | withdrawal awaits a second key | `id`, `accountId`, `amount`, `address` |
+| `treasury.withdrawal.approved` | approved; unsigned tx available | `id`, `accountId`, `amount`, `address` |
+| `treasury.withdrawal.confirmed` | reserved for the confirmed-withdrawal lifecycle (subscribable, not yet emitted) | — |
 
 ## Wildcards
 
-Subscriptions accept wildcards: `transaction.*`, `vault.*`, `treasury.*`, or `*` for everything. New event types may be added under existing prefixes at any time — handle unknown types gracefully.
+Subscriptions accept exact event names, namespace wildcards (`transaction.*`, `account.*`, `treasury.*`, `vault.*`), or `*` for everything. New event types may be added under existing prefixes at any time — handle unknown types gracefully.

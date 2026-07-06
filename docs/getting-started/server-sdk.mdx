@@ -5,24 +5,24 @@ sidebar_position: 9
 
 # Server SDK
 
-`@tbook-dev/vault-node` is the backend companion: webhook signature verification plus a typed client for the REST API.
+`@tbookdev/vault-node` is the backend companion: webhook signature verification plus a typed client for the REST API.
 
 :::info SDK release status
-Ships at **0.2.0** with the v1 sandbox release. The [REST contract](/api-reference) is normative.
+Published under the `@tbookdev` npm scope; npm publication is pending — until then, install from the monorepo. The [REST contract](/api-reference) is normative.
 :::
 
 ## Verify webhooks
 
 ```ts
-import { TBookVaultServer } from "@tbook-dev/vault-node";
+import { TBookVaultServer } from "@tbookdev/vault-node";
 
 const tbook = new TBookVaultServer({
-  apiKey: process.env.TBK_SECRET_KEY,
-  webhookSecret: process.env.WHSEC,
+  secretKey: process.env.TBK_SECRET_KEY, // "apiKey" is accepted as an alias
+  webhookSecret: process.env.WHSEC,      // only needed if you verify inbound events
 });
 
 app.post("/tbook", express.raw({ type: "*/*" }), (req, res) => {
-  const event = tbook.webhooks.verify(req.body.toString(), req.header("X-TBook-Signature"));
+  const event = tbook.webhooks.verify(req.body, req.header("X-TBook-Signature"));
   queue.push(event);      // process async, keyed on event.id
   res.sendStatus(200);
 });
@@ -32,8 +32,9 @@ Verification implements the `t=…,v1=…` HMAC scheme — details and a raw-Pyt
 
 ## Typed API client
 
+Every method maps 1:1 to a [REST endpoint](/api-reference) and adds nothing the REST API cannot do. The namespaces are `accounts` (`create` / `get` / `list` / `update`), `transactions` (`buildDeposit` / `buildRedeem` / `buildClaim` / `buildCancelDeposit` / `confirm` / `get`), and `positions` (`list` / `earnings` / `transactions` / `portfolio`), plus catalog reads (`listAssets`, `listVaults`, `getVaultInfo`, `getSharePrice`) and webhook management (`registerWebhook`, `listWebhooks`, `removeWebhook`, `pollEvents`).
+
 ```ts
-// Indicative 0.2.0 surface
 const account = await tbook.accounts.create({
   externalId: "user-8492",
   type: "individual",
@@ -42,12 +43,29 @@ const account = await tbook.accounts.create({
   compliance: { kyc: { attested: true, provider: "your-kyc", ref: "kyc_123" } },
 });
 
-const intent = await tbook.transactions.buildDeposit({
+const built = await tbook.transactions.buildDeposit({
   vaultId: "rcusdp-sui",
   accountId: account.accountId,
   amount: "100.00",
-  idempotencyKey: crypto.randomUUID(),
 });
+
+// sign built.transaction.data with YOUR signer, submit on-chain, then bind the digest:
+await tbook.transactions.confirm(built.intentId!, { digest });
+
+const positions = await tbook.positions.list(account.accountId);
 ```
 
-Every method maps 1:1 to a [REST endpoint](/api-reference) and adds nothing the REST API cannot do.
+## Idempotency, retries, errors
+
+Money-movement calls are **idempotent by default**: the SDK attaches an `Idempotency-Key` header (auto-generated when you don't pass one), reuses the same key across internal retries, and echoes the key used on the result as `idempotencyKey`. To control the key yourself, pass it as per-call options:
+
+```ts
+await tbook.transactions.buildDeposit(
+  { vaultId: "rcusdp-sui", accountId, amount: "100.00" },
+  { idempotencyKey: "dep-user-8492-2026-07-05" },
+);
+```
+
+Requests time out client-side after 30 s and retry twice on network errors, timeouts, `429`, and `5xx` (never on other `4xx`), so a retried call can never double-move funds. Both defaults are configurable via the constructor's `timeoutMs` / `retries`. API failures throw `TBookApiError` (with `status`, `code`, `message`, `requestId` parsed from the [error envelope](/getting-started/conventions#errors)); transport failures throw `TBookNetworkError`.
+
+For defense in depth, `assertSuiTransaction` / `decodeSuiTransactionSummary` decode an unsigned Sui transaction returned by a build call and assert it does what you expect before you sign it (requires the optional `@mysten/sui` peer dependency).

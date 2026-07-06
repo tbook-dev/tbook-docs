@@ -14,12 +14,15 @@ Everything runs against two environments. Start on **sandbox** — it is a compl
 |---|---|---|
 | Base URL | `https://sandbox.rwa-api.tbook.com` | `https://rwa-api.tbook.com` |
 | Sui | testnet | mainnet |
-| Solana | devnet | mainnet-beta |
 | API keys | `tbk_test_*` | `tbk_pub_*` / `tbk_secret_*` |
 | Funds | test USDC ([faucets](/getting-started/test-funds)) | real |
-| Settlement | daily, plus on-demand via [`/v1/sandbox/settle`](/api-reference/sandbox) | per published vault schedule |
+| Settlement | operator-run cycles, plus on-demand via [`/v1/sandbox/settle`](/api-reference/sandbox) | per published vault schedule |
 
 The API surface is identical in both environments. Promotion to production is a key swap.
+
+:::note Legacy Solana rail (frozen)
+A legacy Solana gateway rail (`rcusdp-sol`, devnet/mainnet-beta) still exists but is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so existing balances can exit. New integrations should target the Sui rail.
+:::
 
 ## Integration in five steps
 
@@ -34,11 +37,11 @@ The API surface is identical in both environments. Promotion to production is a 
 | Path | Best for | What you need |
 |------|----------|---------------|
 | [REST API](/getting-started/rest-api) | Any backend or mobile app; WaaS signing | HTTP + any language |
-| [Client SDK](/getting-started/client-sdk) | Browser apps building transactions client-side | `@tbook-dev/vault-sdk` (Solana rail), `@tbook-dev/vault-sdk-sui` (Sui rail) |
-| [React Hooks](/getting-started/react-hooks) | React apps | `@tbook-dev/vault-react` |
-| [Server SDK](/getting-started/server-sdk) | Webhook verification & typed API client | `@tbook-dev/vault-node` |
+| [Client SDK](/getting-started/client-sdk) | Apps building transactions client-side | `@tbookdev/vault-sdk-sui` |
+| [React Hooks](/getting-started/react-hooks) | React apps on Sui | `@tbookdev/vault-react-sui` |
+| [Server SDK](/getting-started/server-sdk) | Webhook verification & typed API client | `@tbookdev/vault-node` |
 
-REST-only integration is fully supported — the SDKs are optional conveniences.
+REST-only integration is fully supported — the SDKs are optional conveniences. The `@tbookdev` packages are currently distributed from the TBook monorepo; npm publication is pending, so ask your TBook contact for access until then.
 
 ## Read before you build
 

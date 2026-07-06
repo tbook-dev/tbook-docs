@@ -10,16 +10,16 @@ sidebar_position: 4
 | **Organization** | The legal entity that contracts with TBook and owns API keys. Every API resource is scoped to one organization; the API key is the identity. |
 | **Account** | An investment principal under an organization. Types: `individual`, `omnibus`, `treasury`, `business` — see [Account Models](/overview/account-models). |
 | **Asset** | An RWA product (e.g. `rcusdp`, `xaua`), native on some chain, exposed through one or more vaults. |
-| **Rail** | The path from the funding chain to the asset: `direct` (same chain) or `gateway` (cross-chain via TBook's gateway program and Circle CCTP). |
-| **Vault** | An investable instance of an asset on a rail (`rcusdp-sui`, `rcusdp-sol`, `xaua-sui`). |
+| **Rail** | The path from the funding chain to the asset: `direct` (same chain) or `gateway` (cross-chain via TBook's gateway program — used only by the legacy, now-frozen Solana rail). |
+| **Vault** | An investable instance of an asset on a rail (`rcusdp-sui`, `xaua-sui`; the legacy `rcusdp-sol` is frozen/paused). |
 | **Settlement cycle** | The recurring window in which deposits and redemptions are batched and settled (`accepting` → `processing` → settled). Exposed as `settlementCycle` numbers and `vault.cycle.*` events. |
-| **Transaction intent** | The platform-side record of a money movement, created at build time (`txi_…`), tracked `built → submitted → confirmed → settled`. |
+| **Transaction intent** | The platform-side record of a money movement, created at build time (`txi_…`), tracked `built → submitted → confirmed → settled` (terminal alternatives: `failed`, `expired`). |
 | **Share** | A unit of proportional ownership in a vault. Minted on deposit settlement, burned on redemption settlement. For XAUa, one unit corresponds to one gram of gold. |
 | **NAV / share price** | Net asset value of the underlying portfolio per share/unit; the `price` in the catalog. |
 | **Claimable** | USDC waiting in the vault for the account to claim after a redemption settles (or after a rollback refund on the gateway rail). Claims always pay the account's own wallet. |
 | **Custody attribute** | Who controls the account's wallet: `waas` (wallet-as-a-service), `self` (the account holder, e.g. a multisig), `org` (the organization, e.g. an omnibus pool wallet). Descriptive — the signing mechanics are identical. |
 | **Attestation** | The organization's confirmation that it performed KYC (individuals/pools) or KYB (business clients) on an account. TBook relies on the attestation; the organization owns the compliance relationship. |
 | **Whitelist (XAUa)** | Issuer-maintained list of wallets allowed to transact the gold token. Required before any `xaua-*` transaction. |
-| **Idempotency key** | Client-supplied header on money-movement POSTs that makes retries safe. |
+| **Idempotency key** | `Idempotency-Key` header on money-movement POSTs that makes retries safe: replays with the same key and body return the original response for 24 hours (org-scoped); the same key with a different body returns 409 `idempotency_conflict`. The Node SDK generates one automatically and echoes it back as `idempotencyKey` on results. |
 | **WaaS** | Wallet-as-a-service (Crossmint, Privy, …) — provisions per-user wallets and signs the unsigned transactions returned by the API. |
 | **USDC** | The quote and settlement currency for all v1 assets. |
