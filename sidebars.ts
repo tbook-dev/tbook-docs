@@ -26,6 +26,7 @@ const sidebars: SidebarsConfig = {
         'getting-started/test-funds',
         'getting-started/rest-api',
         'getting-started/server-sdk',
+        'getting-started/custody-signing',
         'getting-started/client-sdk',
         'getting-started/react-hooks',
       ],

@@ -23,4 +23,4 @@ Start here:
 2. [Conventions](/getting-started/conventions) — errors, idempotency, pagination, amounts.
 3. [API Reference](/api-reference) — every endpoint, field by field.
 
-The only part HTTP cannot do alone is **signing**: build endpoints return unsigned transactions in `sui:tx-bytes-base64` format (the frozen legacy Solana rail uses `solana:tx-base58`), which your WaaS provider, backend keypair, or multisig signs and submits. See [Transactions](/api-reference/transaction-endpoints) for the format.
+The only part HTTP cannot do alone is **signing**: build endpoints return unsigned transactions in `sui:tx-bytes-base64` format (the frozen legacy Solana rail uses `solana:tx-base58`), which your WaaS provider, backend keypair, or multisig signs and submits. See [Custody & WaaS Signing](/getting-started/custody-signing) for the signing recipe (Turnkey and Privy verified end-to-end) and [Transactions](/api-reference/transaction-endpoints) for the format.
