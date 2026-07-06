@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunktbook_docs=self.webpackChunktbook_docs||[]).push([["452"],{5146(o,e,s){s.r(e),s.d(e,{default:()=>k});var t=s(4848),c=s(6347);function k(){return(0,t.jsx)(c.rd,{to:"/tbook-docs/overview"})}}}]);
