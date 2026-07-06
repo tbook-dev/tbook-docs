@@ -20,7 +20,7 @@ TypeScript SDKs for building and reading on the Sui rail. They wrap the same con
 | `@tbookdev/vault-node` | Server-side: typed API client + webhook verification — see [Server SDK](/getting-started/server-sdk) |
 
 :::note Legacy Solana rail (frozen)
-The Solana packages (`@tbookdev/vault-sdk`, `@tbookdev/vault-react`) are frozen and private — they are not part of the publish set. The `rcusdp-sol` vault is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel remain open for existing positions.
+The Solana packages (`@tbookdev/vault-sdk`, `@tbookdev/vault-react`) are frozen — a `0.1.0` remains on npm from an early release, but they are unmaintained and not part of the publish set; do not use them for new integrations. The `rcusdp-sol` vault is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel remain open for existing positions.
 :::
 
 ## What client SDKs are for
