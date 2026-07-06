@@ -71,7 +71,7 @@ The `summary` echoes `{shares, mode}`.
 
 **Extra errors:** `insufficient_balance` (nothing claimable).
 
-## POST /v1/vaults/:vaultId/tx/cancel-deposit {#cancel-deposit}
+## POST /v1/vaults/:vaultId/tx/cancel-deposit {/* #cancel-deposit */}
 
 **Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings) and is required on the Sui rail (each pending record is cancelled individually). On the legacy Solana gateway rail the full pending deposit bucket is cancelled and `recordId` is ignored.
 
