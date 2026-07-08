@@ -35,10 +35,10 @@ Public catalog reads (e.g. `GET /v1/assets`, `GET /v1/vaults/:vaultId/price`) al
 |---|---|
 | `tbk_secret_` | 1000 requests/min |
 | `tbk_pub_` | 100 requests/min |
-| `tbk_test_` | unlimited |
+| `tbk_test_` | 1000 requests/min (sandbox only) |
 | (no key) | 30 requests/min |
 
-Responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header. Back off and retry — bursts are normal, sustained excess is not.
+Limits use fixed 60-second windows and are enforced **fleet-wide per API key** (per source IP for keyless calls) — the numbers above are exact regardless of how many instances serve your traffic. Responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header. Back off and retry — bursts are normal, sustained excess is not.
 
 ## Issuance, rotation, revocation
 
