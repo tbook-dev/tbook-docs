@@ -58,7 +58,7 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
 
 **Body:** `{accountId, shares, mode}` — `shares` decimal string; `mode` is `"queued"` (default) or `"instant"`.
 
-- **Queued** — enters the settlement cycle; proceeds become claimable on settlement (`transaction.redeem.settled`).
+- **Queued** — enters the settlement cycle; on settlement the proceeds are **paid directly to the account's wallet** (`transaction.redeem.settled` with `amount`) on `rcusdp-sui`. Vaults that allocate a claimable balance instead signal it via `claimable` in the same event — see the [event catalog](/webhooks/event-types).
 - **Instant** — only where the vault's catalog declares `settlement.instantRedeem.available`; pays USDC immediately, less the fee. Availability and fee are operator-tunable **on-chain** and the catalog values are indicative — attempt the build and handle rejection (fall back to queued), or read the on-chain vault state via `@tbookdev/vault-sdk-sui`.
 
 The `summary` echoes `{shares, mode}`.
@@ -68,6 +68,8 @@ The `summary` echoes `{shares, mode}`.
 ## POST /v1/vaults/:vaultId/tx/claim
 
 **Body:** `{accountId}`. Builds a claim of the account's **entire claimable balance**, paid to the account's **own wallet** — an on-chain guarantee. Claim works even when a vault is paused.
+
+Only relevant where a settlement allocated a `claimable` balance — `rcusdp-sui` currently pays redemption proceeds directly on settlement, so there is normally nothing to claim there.
 
 **Extra errors:** `insufficient_balance` (nothing claimable).
 

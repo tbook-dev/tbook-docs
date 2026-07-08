@@ -29,10 +29,10 @@ The Solana gateway rail is **frozen**: the `rcusdp-sol` vault is `paused` in the
 
 ## Redeem
 
-- **Queued (default, all vaults):** `tx/redeem {mode:"queued"}` locks shares into the current cycle → on settlement the proceeds become **claimable** (`transaction.redeem.settled`) → `tx/claim` pays the account's own wallet (`transaction.claim.confirmed`).
+- **Queued (default, all vaults):** `tx/redeem {mode:"queued"}` locks shares into the current cycle → **on settlement the proceeds are paid straight to the account's wallet** — `transaction.redeem.settled` carries the delivered `amount`, and there is nothing further to do. (Verified against a live mainnet settlement cycle: the settle transaction transfers USDC to every redeeming wallet directly.)
 - **Instant (`rcusdp-sui` only):** `tx/redeem {mode:"instant"}` pays USDC immediately, minus an instant-redeem fee. No cycle involved. Availability and the fee are **operator-tunable on-chain** — read `settlement.instantRedeem` from [`GET /v1/vaults/rcusdp-sui`](/api-reference/vault-endpoints) for current values instead of hard-coding them.
 
-`claim` always pays the account's **own wallet** — moving funds anywhere else is a [treasury withdrawal](/api-reference/treasury). Fiat off-ramping is your side of the integration.
+`tx/claim` exists for vaults/rails that allocate a **claimable** balance instead of paying out directly (the event then carries `claimable` and `tx/claim` pays the account's own wallet, `transaction.claim.confirmed`). On `rcusdp-sui` today, redemption proceeds arrive without a claim step. Either way funds only ever reach the account's **own wallet** — moving them anywhere else is a [treasury withdrawal](/api-reference/treasury). Fiat off-ramping is your side of the integration.
 
 ## XAUa specifics
 
