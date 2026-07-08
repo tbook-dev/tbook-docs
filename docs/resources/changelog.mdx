@@ -40,6 +40,15 @@ against source). Highlights:
 
 ## Changelog
 
+### 2026-07-08 — hardened concurrency semantics, request tracing, sandbox domain
+
+- **New error code `idempotency_in_progress` (409):** sending the same `Idempotency-Key` while the original request is still executing now returns a typed 409 with `Retry-After: 2` instead of racing. Exactly one execution happens — the key is claimed before the handler runs. Retry with the **same** key to collect the replayed response. See [conventions](/getting-started/conventions#idempotency).
+- **`@tbookdev/vault-node` 0.2.1** (on npm): automatically retries `409 idempotency_in_progress` with the same key, honoring `Retry-After` — concurrent duplicates resolve to the single original response without integration code.
+- **`x-request-id` on every response:** send your own (8–64 chars, `A-Z a-z 0-9 _ -`) to correlate logs end-to-end, or use the one the gateway mints; errors echo it as `requestId` in the envelope.
+- **Rate limits are exact fleet-wide:** fixed 60-second windows enforced per API key across all instances (per source IP when keyless). `tbk_test_` keys are now limited to 1000 requests/min on sandbox (previously documented as unlimited).
+- **Deposit builds disclose `quotedAt`:** the timestamp of the shared price snapshot behind `sharePrice`/`estimatedShares` — all instances quote from the same snapshot.
+- **Sandbox base URL is `https://rwa-api-sandbox.tbook.com`** (previously misdocumented as `sandbox.rwa-api.tbook.com`).
+
 ### 2026-07 — documentation aligned to the current implementation
 
 - **Sui-first:** the Solana gateway rail (`rcusdp-sol`) is frozen — the vault is `paused`, deposit/redeem builds return 409 `vault_paused`, and claim/cancel-deposit stay open so balances can exit. Solana-specific integration guidance has been removed; the architecture remains chain-decoupled and accounts may still declare `sui` or `solana` wallets.

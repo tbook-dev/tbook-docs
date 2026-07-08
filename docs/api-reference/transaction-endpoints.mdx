@@ -29,7 +29,7 @@ All build endpoints: secret or publishable key (contract style with `accountId`)
 | `vaultId`, `type`, `chain`, `rail` | string | echo of what was built |
 | `transaction.format` | enum | `sui:tx-bytes-base64` · `solana:tx-base58` |
 | `transaction.data` | string | the unsigned transaction — sign and submit **as-is** |
-| `summary` | object? | human-checkable amounts — see each endpoint for its fields; price-derived fields (`sharePrice`, `estimatedShares`) are best-effort and may be absent if the price source is briefly unavailable |
+| `summary` | object? | human-checkable amounts — see each endpoint for its fields; price-derived fields (`sharePrice`, `estimatedShares`, `quotedAt`) are best-effort and may be absent if the price source is briefly unavailable. `quotedAt` timestamps the shared price snapshot used — all instances quote from the same snapshot, so concurrent builds never disagree on price |
 | `message` | string | human-readable description of the built transaction |
 | `expiresAt` | timestamp | ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
 
@@ -46,7 +46,7 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
   "intentId": "txi_01h…",
   "vaultId": "rcusdp-sui", "type": "deposit", "chain": "sui", "rail": "direct",
   "transaction": { "format": "sui:tx-bytes-base64", "data": "AAAC…" },
-  "summary": { "amount": "100", "sharePrice": "1.0275", "estimatedShares": "97.3236" },
+  "summary": { "amount": "100", "sharePrice": "1.0275", "estimatedShares": "97.3236", "quotedAt": "2026-06-15T08:07:58Z" },
   "message": "Deposit 100.000000 USDC into rcusdp-sui",
   "expiresAt": "2026-06-15T08:10:00Z"
 }

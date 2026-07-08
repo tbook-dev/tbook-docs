@@ -66,6 +66,6 @@ await tbook.transactions.buildDeposit(
 );
 ```
 
-Requests time out client-side after 30 s and retry twice on network errors, timeouts, `429`, and `5xx` (never on other `4xx`), so a retried call can never double-move funds. Both defaults are configurable via the constructor's `timeoutMs` / `retries`. API failures throw `TBookApiError` (with `status`, `code`, `message`, `requestId` parsed from the [error envelope](/getting-started/conventions#errors)); transport failures throw `TBookNetworkError`.
+Requests time out client-side after 30 s and retry twice on network errors, timeouts, `429`, and `5xx`, so a retried call can never double-move funds. The one `4xx` the SDK retries (≥ 0.2.1) is `409 idempotency_in_progress` — a concurrent request holds the same `Idempotency-Key` — which it retries with the **same** key, honoring `Retry-After`, and returns the replayed response; other `4xx` are never retried. Both defaults are configurable via the constructor's `timeoutMs` / `retries`. API failures throw `TBookApiError` (with `status`, `code`, `message`, `requestId` parsed from the [error envelope](/getting-started/conventions#errors)); transport failures throw `TBookNetworkError`.
 
 For defense in depth, `assertSuiTransaction` / `decodeSuiTransactionSummary` decode an unsigned Sui transaction returned by a build call and assert it does what you expect before you sign it (requires the optional `@mysten/sui` peer dependency).

@@ -32,6 +32,7 @@ Quote `requestId` in support requests. Error codes:
 | `not_found` | 404 | Resource doesn't exist **or belongs to another organization** |
 | `conflict` | 409 | Uniqueness violated (wallet already bound, externalId taken, digest already linked) |
 | `idempotency_conflict` | 409 | Same `Idempotency-Key`, different request body |
+| `idempotency_in_progress` | 409 | Same `Idempotency-Key` while the original request is still executing — carries `Retry-After: 2`; retry with the **same** key |
 | `vault_paused` | 409 | Vault not accepting new deposits/redemptions (e.g. the frozen legacy Solana rail); claim and cancel stay open |
 | `cycle_closed` | 409 | Reserved — defined in the contract but not currently emitted; cycle-window conflicts surface as on-chain aborts at execution |
 | `rate_limited` | 429 | Slow down; honor `Retry-After` |
@@ -41,12 +42,17 @@ Quote `requestId` in support requests. Error codes:
 | `upstream_unavailable` | 502 | An upstream chain RPC request failed — currently only the legacy Solana reads, which proxy a public devnet RPC. Retryable; prefer the current `/v1/vaults` and `/v1/accounts` reads |
 | `internal_error` | 500 | Our fault; safe to retry with the same idempotency key |
 
+## Request IDs
+
+Every response — success or error — carries an `x-request-id` header; on errors the same id appears as `requestId` in the envelope. Send your own `x-request-id` (8–64 chars of `A-Z a-z 0-9 _ -`) and it is echoed back, correlating your logs with ours end-to-end; otherwise the gateway mints one.
+
 ## Idempotency
 
 Every money-movement POST accepts an `Idempotency-Key` header (any unique string ≤255 chars; UUIDs recommended):
 
 - Same key + same body → the original response is replayed verbatim (no duplicate effect), marked with an `Idempotency-Replayed: true` header.
 - Same key + different body → `409 idempotency_conflict`.
+- Same key while the original request is **still executing** (concurrent duplicate) → `409 idempotency_in_progress` with `Retry-After: 2`. Exactly one execution happens — the key is claimed **before** the handler runs. Retry with the **same** key to collect the replayed response; `@tbookdev/vault-node` ≥ 0.2.1 does this automatically.
 - Keys are retained for **24 hours** — a same-key retry after that re-executes the request. Don't rely on idempotency for retries spanning more than a day.
 - Storage is scoped to your organization. Anonymous (keyless) requests are **not deduplicated** — use an API key for any money movement you may retry.
 - `5xx` responses are not cached, so you can safely retry them with the same key.
@@ -78,4 +84,4 @@ Timestamps are ISO-8601 UTC (`2026-06-15T08:14:05Z`). IDs carry type prefixes: `
 
 ## Environments
 
-Sandbox (`sandbox.rwa-api.tbook.com`) and production (`rwa-api.tbook.com`) are wire-compatible. Sandbox adds two extra endpoints under [`/v1/sandbox/*`](/api-reference/sandbox) that do not exist in production.
+Sandbox (`rwa-api-sandbox.tbook.com`) and production (`rwa-api.tbook.com`) are wire-compatible. Sandbox adds two extra endpoints under [`/v1/sandbox/*`](/api-reference/sandbox) that do not exist in production.
