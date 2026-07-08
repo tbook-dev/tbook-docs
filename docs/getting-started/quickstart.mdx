@@ -145,7 +145,7 @@ You now have the full loop: catalog → account → build → sign → confirm �
 
 ## Where to go next
 
-- **Redeem & claim:** `POST /v1/vaults/rcusdp-sui/tx/redeem` then, after settlement, `tx/claim` — see [Transactions](/api-reference/transaction-endpoints).
+- **Redeem:** `POST /v1/vaults/rcusdp-sui/tx/redeem` — on settlement the proceeds are paid straight to the account's wallet (`transaction.redeem.settled` with `amount`) — see [Transactions](/api-reference/transaction-endpoints).
 - **Pick your real account model:** [Account Models](/overview/account-models) — this quickstart used `individual`; omnibus and treasury change who signs and who books.
 - **Handle every event:** [Webhook event catalog](/webhooks/event-types).
 - **Go deeper on conventions:** [idempotency, errors, pagination](/getting-started/conventions).

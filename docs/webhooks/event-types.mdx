@@ -51,9 +51,12 @@ Cancel transaction confirmed **or** cycle rollback (`reason: "cancelled" | "roll
 
 ### transaction.redeem.confirmed / transaction.redeem.settled
 
-Redemption queued / proceeds claimable. `confirmed` data includes the locked `shares` (plus `estimatedProceeds` on `rcusdp-sui`); `settled` data includes `claimable` (USDC).
+Redemption queued / proceeds final. `confirmed` data includes the locked `shares` (plus `estimatedProceeds` on `rcusdp-sui`). `settled` data carries **one of two shapes** depending on how the vault settles:
 
-**Suggested UI on `settled`:** "Withdrawal ready" with a claim action.
+- `amount` (USDC) — the settlement **paid the wallet directly**; nothing further to do. This is how `rcusdp-sui` settles today.
+- `claimable` (USDC) — the vault allocates a claimable balance; call [`tx/claim`](/api-reference/transaction-endpoints) to receive it.
+
+**Suggested UI on `settled`:** with `amount` — "Withdrawal complete"; with `claimable` — "Withdrawal ready" with a claim action.
 
 ### transaction.claim.confirmed
 

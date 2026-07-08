@@ -40,6 +40,11 @@ against source). Highlights:
 
 ## Changelog
 
+### 2026-07-08 (later) — redemption settlement pays out directly on rcusdp-sui
+
+- **`transaction.redeem.settled` now carries `amount`** on `rcusdp-sui`: settlement transfers the proceeds straight to the account's wallet — **no claim step**. Verified against a live mainnet settlement cycle. Vaults that allocate a claimable balance instead keep the `claimable` shape (then `tx/claim` applies). Handle both: `amount` → withdrawal complete; `claimable` → prompt a claim.
+- `tx/claim` remains available but is a no-op path on `rcusdp-sui` today (`insufficient_balance` when nothing was allocated).
+
 ### 2026-07-08 — hardened concurrency semantics, request tracing, sandbox domain
 
 - **New error code `idempotency_in_progress` (409):** sending the same `Idempotency-Key` while the original request is still executing now returns a typed 409 with `Retry-After: 2` instead of racing. Exactly one execution happens — the key is claimed before the handler runs. Retry with the **same** key to collect the replayed response. See [conventions](/getting-started/conventions#idempotency).
