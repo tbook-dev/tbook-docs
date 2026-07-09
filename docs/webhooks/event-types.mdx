@@ -56,6 +56,8 @@ Redemption queued / proceeds final. `confirmed` data includes the locked `shares
 - `amount` (USDC) — the settlement **paid the wallet directly**; nothing further to do. This is how `rcusdp-sui` settles today.
 - `claimable` (USDC) — the vault allocates a claimable balance; call [`tx/claim`](/api-reference/transaction-endpoints) to receive it.
 
+When several redemptions from the same wallet settle in one cycle (typical for omnibus accounts), the chain pays **one aggregated transfer per wallet**: each intent still gets its own `settled` event, with `amount` split proportionally by locked shares and `walletTotal` carrying the full delivered figure. Reconcile your ledger against `walletTotal` / the on-chain transfer — that is the authoritative number; the per-intent splits are exact under one cycle's single price and fee.
+
 **Suggested UI on `settled`:** with `amount` — "Withdrawal complete"; with `claimable` — "Withdrawal ready" with a claim action.
 
 ### transaction.claim.confirmed
