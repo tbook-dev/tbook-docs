@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunktbook_docs=self.webpackChunktbook_docs||[]).push([["452"],{5146(e,o,s){s.r(o),s.d(o,{default:()=>c});var t=s(4848),r=s(6347),u=s(6497);function c(){return(0,t.jsx)(r.rd,{to:(0,u.Ay)("/overview")})}}}]);
