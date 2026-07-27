@@ -11,8 +11,8 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://tbook-dev.github.io',
-  baseUrl: '/tbook-docs/',
+  url: 'https://rwa-docs.tbook.com',
+  baseUrl: '/',
 
   organizationName: 'tbook-dev',
   projectName: 'tbook-docs',
@@ -41,14 +41,6 @@ const config: Config = {
   ],
 
   themeConfig: {
-    announcementBar: {
-      id: 'v1_draft_contract',
-      content:
-        'v1 Draft — Integration Contract under review. Contents are normative for the upcoming sandbox release; the API is not yet live. Feedback via your TBook contact.',
-      backgroundColor: '#fff8e6',
-      textColor: '#5c4400',
-      isCloseable: false,
-    },
     colorMode: {
       disableSwitch: true,
       defaultMode: 'light',
