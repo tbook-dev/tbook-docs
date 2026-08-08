@@ -33,13 +33,13 @@ Quote `requestId` in support requests. Error codes:
 | `conflict` | 409 | Uniqueness violated (wallet already bound, externalId taken, digest already linked) |
 | `idempotency_conflict` | 409 | Same `Idempotency-Key`, different request body |
 | `idempotency_in_progress` | 409 | Same `Idempotency-Key` while the original request is still executing — carries `Retry-After: 2`; retry with the **same** key |
-| `vault_paused` | 409 | Vault not accepting new deposits/redemptions (e.g. the frozen legacy Solana rail); claim and cancel stay open |
+| `vault_paused` | 409 | Vault not accepting new deposits/redemptions; claim and cancel stay open |
 | `cycle_closed` | 409 | Reserved — defined in the contract but not currently emitted; cycle-window conflicts surface as on-chain aborts at execution |
 | `rate_limited` | 429 | Slow down; honor `Retry-After` |
 | `below_min_deposit` | 400 | Amount under the vault's `minDeposit` |
 | `insufficient_balance` | 400 | Nothing claimable, not enough USDC, or the wallet has no gas coin to build the transaction |
 | `insufficient_shares` | 400 | Redeem amount exceeds available shares |
-| `upstream_unavailable` | 502 | An upstream chain RPC request failed — currently only the legacy Solana reads, which proxy a public devnet RPC. Retryable; prefer the current `/v1/vaults` and `/v1/accounts` reads |
+| `upstream_unavailable` | 502 | An upstream chain RPC request failed. Retryable |
 | `internal_error` | 500 | Our fault; safe to retry with the same idempotency key |
 
 ## Request IDs

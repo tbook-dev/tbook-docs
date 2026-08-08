@@ -32,8 +32,8 @@ The full catalog, grouped by asset.
 | Field | Type | Notes |
 |---|---|---|
 | `vaultId` | string | e.g. `rcusdp-sui` — use in all `tx/*` and vault endpoints |
-| `chain` | enum | `sui` · `solana` |
-| `rail` | enum | `direct` (same-chain) · `gateway` (cross-chain via TBook gateway — legacy Solana rail only) |
+| `chain` | enum | `sui` |
+| `rail` | enum | `direct` — the account's USDC and the vault are on the same chain |
 | `status` | enum | as asset status |
 | `minDeposit` | string | in `currency` |
 | `settlement` | object | see below |
@@ -73,8 +73,7 @@ Even on `"chain"`, the switch can flip between your read and the user's signatur
      {"vaultId":"rcusdp-sui","chain":"sui","rail":"direct","status":"active","minDeposit":"1",
       "settlement":{"deposit":"T+1","redeem":"T+1","instantRedeem":{"available":true,"feeBps":700}},
       "cancelable":true,"cancelFeeBps":200},
-     {"vaultId":"rcusdp-sol","chain":"solana","rail":"gateway","status":"paused","minDeposit":"1",
-      "settlement":{"deposit":"T+1~3","redeem":"T+1~3"},"cancelable":true,"cancelFeeBps":10}]},
+      "cancelable":true,"cancelFeeBps":200}]},
   {"id":"xaua","symbol":"XAUa","name":"Alpha Gold Token","type":"commodity",
    "nativeChain":"sui","status":"active","currency":"USDC","price":"107.51","unit":"gram",
    "vaults":[
@@ -83,9 +82,6 @@ Even on `"chain"`, the switch can flip between your read and the user's signatur
       "requiresWhitelist":true,"feeBps":{"subscribe":10,"redeem":20}}]}]}
 ```
 
-:::info Legacy Solana rail (frozen)
-`rcusdp-sol` is **paused**: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so existing balances can exit. Legacy Solana read endpoints (`GET /v1/vaults/:vaultId/users/:pubkey` and `…/history`) remain available for that rail.
-:::
 
 ---
 

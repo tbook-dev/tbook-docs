@@ -27,11 +27,11 @@ All build endpoints: secret or publishable key (contract style with `accountId`)
 |---|---|---|
 | `intentId` | string? | present on authenticated calls — track via lifecycle; appears in webhooks |
 | `vaultId`, `type`, `chain`, `rail` | string | echo of what was built |
-| `transaction.format` | enum | `sui:tx-bytes-base64` · `solana:tx-base58` |
+| `transaction.format` | enum | `sui:tx-bytes-base64` |
 | `transaction.data` | string | the unsigned transaction — sign and submit **as-is** |
 | `summary` | object? | human-checkable amounts — see each endpoint for its fields. The price-derived fields (`sharePrice`, `estimatedShares`, `quotedAt`) are **rcUSDP-only**: they come from the rcUSDP NAV source, so an `xaua-sui` build omits them rather than pricing gold off a stablecoin's NAV — read their absence as "not quotable here", never as zero. They are also best-effort for rcUSDP (a briefly unavailable price source drops them and the build still succeeds). `quotedAt` timestamps the shared price snapshot used — all instances quote from the same snapshot, so concurrent builds never disagree on price |
 | `message` | string | human-readable description of the built transaction |
-| `expiresAt` | timestamp | How long we expect you to hold the unsigned bytes: ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
+| `expiresAt` | timestamp | How long we expect you to hold the unsigned bytes: ≈10 min. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
 
 **Built Sui transactions also carry an on-chain expiry.** The bytes set `ValidDuring.maxEpoch` to the epoch after the one they were built in (~24–48h of validity — well beyond the `expiresAt` above, but finite). Two consequences if you hold funds against a submission:
 
@@ -80,9 +80,9 @@ Only relevant where a settlement allocated a `claimable` balance — `rcusdp-sui
 
 ## POST /v1/vaults/:vaultId/tx/cancel-deposit {/* #cancel-deposit */}
 
-**Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings) and is required on the Sui rail (each pending record is cancelled individually). On the legacy Solana gateway rail the full pending deposit bucket is cancelled and `recordId` is ignored.
+**Body:** `{accountId, recordId}` — `recordId` comes from [`positions.pending.deposits[]`](/api-reference/positions-earnings) — each pending record is cancelled individually.
 
-**Fees:** the vault's `cancelFeeBps` is withheld from the returned principal — **200 bps (2%) on `rcusdp-sui`** (verified on-chain), 10 bps on the legacy `rcusdp-sol` rail. The response `summary` discloses `{recordId?, cancelable, cancelFeeBps}` plus a note: the on-chain returned amount is authoritative — reconcile against it, not the requested amount.
+**Fees:** the vault's `cancelFeeBps` is withheld from the returned principal — **200 bps (2%) on `rcusdp-sui`** (verified on-chain). The response `summary` discloses `{recordId?, cancelable, cancelFeeBps}` plus a note: the on-chain returned amount is authoritative — reconcile against it, not the requested amount.
 
 **Extra errors:** `invalid_request` (400) if the vault is not cancelable (`xaua-sui` declares `cancelable: false`) or if `recordId` is missing on the Sui rail.
 
@@ -92,7 +92,7 @@ Only relevant where a settlement allocated a `claimable` balance — `rcusdp-sui
 
 Report the chain result after you submit. Requires any valid API key.
 
-**Body:** `{digest}` (Sui) or `{signature}` (Solana).
+**Body:** `{digest}`.
 
 **Response:** `{intentId, status}` — the intent flips to `submitted`.
 

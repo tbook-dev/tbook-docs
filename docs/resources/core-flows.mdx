@@ -23,9 +23,6 @@ build tx ──► user signs ──► pending record (cycle N)
 3. While the cycle is `accepting`, an `rcusdp-sui` deposit is cancelable (`tx/cancel-deposit` with the `recordId` from positions; a **200 bps cancel fee** is withheld, disclosed in the build response's `summary.cancelFeeBps`). `xaua-sui` subscriptions are **not cancelable** — `tx/cancel-deposit` returns 400.
 4. Cycle settles → shares credited at the cycle's share price. Intent: `settled`; webhook `transaction.deposit.settled`.
 
-## Legacy Solana rail (`rcusdp-sol`) — frozen
-
-The Solana gateway rail is **frozen**: the `rcusdp-sol` vault is `paused` in the catalog. Deposit and redeem builds return **409 `vault_paused`**; `tx/claim` and `tx/cancel-deposit` stay open so any remaining balances can exit, and the legacy read endpoints keep working. New integrations should target the Sui vaults only.
 
 ## Redeem
 
@@ -56,5 +53,4 @@ The Solana gateway rail is **frozen**: the `rcusdp-sol` vault is `paused` in the
 | Vault | Deposit | Redeem | Instant redeem | Cancel window |
 |---|---|---|---|---|
 | `rcusdp-sui` | T+1 | T+1 | operator-tunable — see `GET /v1/vaults/rcusdp-sui` | while cycle `accepting` (200 bps fee) |
-| `rcusdp-sol` (frozen) | paused — 409 `vault_paused` | paused — 409 `vault_paused` | — | claim & cancel remain open |
 | `xaua-sui` | T+3 (cutoff 10:00 UTC) | T+3 | — | not cancelable |

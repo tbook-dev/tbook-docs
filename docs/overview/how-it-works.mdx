@@ -25,9 +25,6 @@ Your users' USDC sits on Sui, the same chain as the assets, so deposits go **str
 
 New chains and new assets appear as new vault entries in the [asset catalog](/api-reference/vault-endpoints) — your integration does not change.
 
-:::note Legacy Solana rail (frozen)
-A `solana:gateway` rail (`rcusdp-sol`) predates the Sui-native integration and is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so any remaining balances can exit. Legacy Solana read endpoints remain available.
-:::
 
 ## Settlement cycles
 
