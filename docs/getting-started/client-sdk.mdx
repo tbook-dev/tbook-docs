@@ -28,10 +28,15 @@ The Solana packages (`@tbookdev/vault-sdk`, `@tbookdev/vault-react`) are frozen 
 Use `@tbookdev/vault-sdk-sui` when you build transactions **in the browser** (or any environment with your own signer) against a connected wallet, rather than through your backend. The SDK produces unsigned transaction bytes — no signing, no React:
 
 ```ts
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { getSuiVaultConfig, buildDepositTx } from "@tbookdev/vault-sdk-sui";
 
-const client = new SuiClient({ url: getFullnodeUrl("testnet") });
+// @mysten/sui 2.x — Sui's network-wide JSON-RPC service was switched off in
+// July 2026, so builders take a gRPC (or GraphQL) client.
+const client = new SuiGrpcClient({
+  network: "testnet",
+  baseUrl: "https://fullnode.testnet.sui.io:443",
+});
 const vault = getSuiVaultConfig("rcusdp-sui", "testnet");
 
 // Amounts are raw USDC units (6 decimals): 100.00 USDC = 100_000_000n
@@ -39,9 +44,9 @@ const { txBytesBase64, message } = await buildDepositTx(client, vault, {
   sender: wallet.address,
   amount: 100_000_000n,
 });
-// sign with @mysten/dapp-kit: useSignAndExecuteTransaction({ transaction: txBytesBase64 })
+// sign with @mysten/dapp-kit-react: useDAppKit().signAndExecuteTransaction({ transaction: txBytesBase64 })
 ```
 
-The full builder set covers the rcUSDP lifecycle — `buildDepositTx`, `buildQueueRedeemTx`, `buildInstantRedeemTx`, `buildCancelDepositTx`, `buildClaimTx`, `buildTransferUsdcTx` — plus reads (`getUserPosition`, `getVaultState`, `getUserRecords`) and XAUa AlphaVault helpers (`getAlphaVaultConfig`, `buildSubscribeTx`, `buildRequestRedemptionTx`, `buildCancelRequestTx`, `buildClaimUsdcTx`, `getAlphaPosition`). Transient RPC failures can be wrapped with the exported `withRetry` helper.
+The full builder set covers the rcUSDP lifecycle — `buildDepositTx`, `buildQueueRedeemTx`, `buildInstantRedeemTx`, `buildCancelDepositTx`, `buildClaimTx`, `buildTransferUsdcTx` — plus reads (`getUserPosition`, `getVaultState`, `getUserRecords`) and XAUa AlphaVault helpers (`getAlphaVaultConfig`, `buildSubscribeTx`, `buildRequestRedemptionTx`, `buildCancelRequestTx`, `buildClaimUsdcTx`, `getAlphaPosition`). Transient RPC failures can be wrapped with the exported `withRetry` helper, which recognises gRPC transport statuses (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`) as well as HTTP ones.
 
 For server-driven integrations (most fintech apps, all omnibus/treasury setups), prefer the [REST API](/getting-started/rest-api) — it adds intent tracking, idempotency, and attribution automatically.

@@ -51,7 +51,8 @@ const signature = toSerializedSignature({
   signature: rawSignature,
   publicKey: new Ed25519PublicKey(accountPublicKey32Bytes),
 });
-// 5. client.executeTransactionBlock({ transactionBlock: txBytesBase64, signature })
+// 5. client.executeTransaction({ transaction: txBytesBase64, signatures: [signature] })
+//    (@mysten/sui 2.x gRPC — executeTransactionBlock was JSON-RPC only)
 ```
 
 Only step 3 differs per provider.

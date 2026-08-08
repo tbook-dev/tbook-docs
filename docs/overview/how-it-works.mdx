@@ -52,7 +52,7 @@ You never manage cycles. You observe them:
 | Claim | USDC arrives in the account's own wallet immediately | — |
 | Instant redeem (`rcusdp-sui`, when enabled) | USDC immediately, at a higher fee | — |
 
-Timing per vault is published in the catalog (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`) — currently T+1 for `rcusdp-sui` and T+3 for `xaua-sui` (cutoff 10:00 UTC). Instant-redeem availability and its fee are operator-controlled **on-chain** and can change at any time — treat the catalog values as indicative, and handle a rejected instant redemption gracefully (fall back to a queued redemption).
+Timing per vault is published in the catalog (`settlement.deposit`, `settlement.redeem`, `settlement.cutoffUtc`) — currently T+1 for `rcusdp-sui` and T+3 for `xaua-sui` (cutoff 10:00 UTC). Instant-redeem availability and its fee are an operator switch **on the contract** and can change at any time — `GET /v1/vaults/:vaultId` reads that switch for you and reports where the answer came from (`settlement.instantRedeem.source`). Keep a queued-redemption fallback: the switch can still flip between your read and the user's signature.
 
 ## The transaction model: build → sign → submit → confirm
 

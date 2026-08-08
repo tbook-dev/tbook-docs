@@ -40,6 +40,14 @@ against source). Highlights:
 
 ## Changelog
 
+### 2026-08-08 — Sui gRPC migration, on-chain instant-redeem, transaction expiry
+
+- **Sui JSON-RPC is gone.** Sui deactivated its network-wide JSON-RPC service at the end of July 2026. Every chain snippet in these docs now uses `@mysten/sui` 2.x: `SuiGrpcClient` for point reads and submits, `@mysten/dapp-kit-react` 2.x for the React provider. `SuiClient`, `getFullnodeUrl`, `executeTransactionBlock`, `SuiClientProvider`/`WalletProvider` no longer exist — see [Quickstart](/getting-started/quickstart), [Client SDK](/getting-started/client-sdk), [React hooks](/getting-started/react-hooks). This entry is late: the platform migrated on 2026-07-14 and these pages kept showing the old client for a month.
+- **`settlement.instantRedeem` is read from the contract**, not declared. `GET /v1/vaults/:vaultId` now returns it with a `source` field (`"chain"` or `"catalog-unverified"`) so you can tell a confirmed "off" from an unverifiable one. Never quote an instant redemption on `"catalog-unverified"`. Previously the catalog declared `available: true` at 700 bps while both networks had the switch **off** — do not rely on any cached copy of that answer.
+- **Built Sui transactions now carry `ValidDuring.maxEpoch`** (the epoch after they were built, ~24–48h). A digest the chain has never seen past that epoch is permanently absent, which is what makes releasing or refunding a held position safe.
+- **`summary` price fields are rcUSDP-only.** `sharePrice` / `estimatedShares` / `quotedAt` come from the rcUSDP NAV source; an `xaua-sui` build omits them rather than pricing gold off a stablecoin's NAV.
+- **`packageId`** added to `GET /v1/vaults/:vaultId` — the Move package the vault's calls target. Package upgrades change it: read it, don't pin it.
+
 ### 2026-07-08 (later) — redemption settlement pays out directly on rcusdp-sui
 
 - **`transaction.redeem.settled` now carries `amount`** on `rcusdp-sui`: settlement transfers the proceeds straight to the account's wallet — **no claim step**. Verified against a live mainnet settlement cycle. Vaults that allocate a claimable balance instead keep the `claimable` shape (then `tx/claim` applies). Handle both: `amount` → withdrawal complete; `claimable` → prompt a claim.
