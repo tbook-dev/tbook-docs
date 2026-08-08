@@ -20,9 +20,6 @@ Everything runs against two environments. Start on **sandbox** — it is a compl
 
 The API surface is identical in both environments. Promotion to production is a key swap.
 
-:::note Legacy Solana rail (frozen)
-A legacy Solana gateway rail (`rcusdp-sol`, devnet/mainnet-beta) still exists but is paused: deposit and redeem builds return `409 vault_paused`, while claim and cancel-deposit stay open so existing balances can exit. New integrations should target the Sui rail.
-:::
 
 ## Integration in five steps
 

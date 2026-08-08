@@ -43,7 +43,7 @@ Notes:
 
 - **`pending.deposits[].recordId` is the cancel handle** for [`tx/cancel-deposit`](/api-reference/transaction-endpoints#cancel-deposit).
 - Only vaults where the account holds something appear; vaults on chains where the account has no wallet are skipped.
-- Sui-rail positions read on-chain records directly. Legacy Solana-rail positions already include settled-but-not-yet-touched balances (the gateway settles lazily on the user's next interaction; the API accounts for it so you never display stale numbers).
+- Positions read the on-chain records directly, so the numbers you display are the chain's, not a cached projection.
 - `value = shares × sharePrice`, in `currency`. `sharePrice` and `value` are `null` when the price source is briefly unavailable — handle that in your UI.
 
 ---

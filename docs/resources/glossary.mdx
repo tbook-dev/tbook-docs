@@ -10,8 +10,8 @@ sidebar_position: 4
 | **Organization** | The legal entity that contracts with TBook and owns API keys. Every API resource is scoped to one organization; the API key is the identity. |
 | **Account** | An investment principal under an organization. Types: `individual`, `omnibus`, `treasury`, `business` — see [Account Models](/overview/account-models). |
 | **Asset** | An RWA product (e.g. `rcusdp`, `xaua`), native on some chain, exposed through one or more vaults. |
-| **Rail** | The path from the funding chain to the asset: `direct` (same chain) or `gateway` (cross-chain via TBook's gateway program — used only by the legacy, now-frozen Solana rail). |
-| **Vault** | An investable instance of an asset on a rail (`rcusdp-sui`, `xaua-sui`; the legacy `rcusdp-sol` is frozen/paused). |
+| **Rail** | The path from the funding chain to the asset. TBook vaults use `direct`: the account's USDC and the vault live on the same chain. |
+| **Vault** | An investable instance of an asset on a rail (`rcusdp-sui`, `xaua-sui`). |
 | **Settlement cycle** | The recurring window in which deposits and redemptions are batched and settled (`accepting` → `processing` → settled). Exposed as `settlementCycle` numbers and `vault.cycle.*` events. |
 | **Transaction intent** | The platform-side record of a money movement, created at build time (`txi_…`), tracked `built → submitted → confirmed → settled` (terminal alternatives: `failed`, `expired`). |
 | **Share** | A unit of proportional ownership in a vault. Minted on deposit settlement, burned on redemption settlement. For XAUa, one unit corresponds to one gram of gold. |
