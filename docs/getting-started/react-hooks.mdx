@@ -5,7 +5,7 @@ sidebar_position: 8
 
 # React Hooks
 
-`@tbookdev/vault-react-sui` provides headless, React Query–powered hooks over the Sui client SDK — vault state, balances, history, and transaction flows without hand-rolled state management. It ships hooks only (no pre-built UI components) and assumes your app already provides the `@mysten/dapp-kit` and `@tanstack/react-query` providers.
+`@tbookdev/vault-react-sui` provides headless, React Query–powered hooks over the Sui client SDK — vault state, balances, history, and transaction flows without hand-rolled state management. It ships hooks only (no pre-built UI components) and assumes your app already provides the `@mysten/dapp-kit-react` (2.x) and `@tanstack/react-query` providers.
 
 :::info SDK release status
 Published on the public npm registry together with `@tbookdev/vault-sdk-sui` — install with `npm install @tbookdev/vault-react-sui`. The [REST contract](/api-reference) is normative.
@@ -13,27 +13,31 @@ Published on the public npm registry together with `@tbookdev/vault-sdk-sui` —
 
 ## Setup
 
-Wrap your app in `TBookSuiVaultProvider` inside your existing dapp-kit and React Query providers:
+Wrap your app in `TBookSuiVaultProvider` inside your existing dapp-kit and React Query providers. Sui deactivated its network-wide JSON-RPC service in July 2026, so the dapp-kit provider is built from a **gRPC** client (`@mysten/dapp-kit-react` 2.x — the older `@mysten/dapp-kit` `SuiClientProvider`/`WalletProvider` pair and `getFullnodeUrl` are gone):
 
 ```tsx
-import { getFullnodeUrl } from "@mysten/sui/client";
-import { SuiClientProvider, WalletProvider } from "@mysten/dapp-kit";
+import { SuiGrpcClient } from "@mysten/sui/grpc";
+import { createDAppKit, DAppKitProvider } from "@mysten/dapp-kit-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBookSuiVaultProvider } from "@tbookdev/vault-react-sui";
 
 const queryClient = new QueryClient();
-const networks = { testnet: { url: getFullnodeUrl("testnet") } };
+
+const dAppKit = createDAppKit({
+  networks: ["testnet"],
+  defaultNetwork: "testnet",
+  createClient: (network) =>
+    new SuiGrpcClient({ network, baseUrl: `https://fullnode.${network}.sui.io:443` }),
+});
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
-          <TBookSuiVaultProvider network="testnet" vaultId="rcusdp-sui">
-            <Earn />
-          </TBookSuiVaultProvider>
-        </WalletProvider>
-      </SuiClientProvider>
+      <DAppKitProvider dAppKit={dAppKit}>
+        <TBookSuiVaultProvider network="testnet" vaultId="rcusdp-sui">
+          <Earn />
+        </TBookSuiVaultProvider>
+      </DAppKitProvider>
     </QueryClientProvider>
   );
 }

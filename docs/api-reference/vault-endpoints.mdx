@@ -48,10 +48,19 @@ The full catalog, grouped by asset.
 |---|---|
 | `deposit` / `redeem` | Time to settle, e.g. `"T+1"`, `"T+3"` (business days) |
 | `cutoffUtc` | Requests before this time enter the current settlement cycle; after it, the next one |
-| `instantRedeem?` | `{available, feeBps}` — immediate exit path where supported |
+| `instantRedeem?` | `{available, feeBps, source}` — immediate exit path where supported. Read from the contract per request; see below |
 
-:::note Instant-redeem values are operator-tunable
-Instant-redeem availability and its fee are operator-controlled **on-chain** and can change without a catalog release, so the catalog values here are **indicative**. Do not quote them as binding to a user: attempt the instant build and handle rejection (fall back to a queued redemption), or verify the on-chain vault state directly via `@tbookdev/vault-sdk-sui`'s `getVaultState`.
+:::note Instant redeem is read from the contract, not declared
+Instant-redeem availability and its fee are an **operator switch on the vault contract** — they change without a release. This endpoint reads that switch for you on every request (short-cached), so you do not need to query the chain yourself. The `source` field tells you what you got:
+
+| `source` | meaning |
+|---|---|
+| `"chain"` | `available` and `feeBps` are the contract's current values |
+| `"catalog-unverified"` | the chain could not be read; these are the catalog's declared values and may be stale |
+
+**Never quote an instant redemption on `"catalog-unverified"`** — it means we could not confirm the switch, which is not the same as confirming it is on. Treat it like `available: false` until a later request returns `"chain"`.
+
+Even on `"chain"`, the switch can flip between your read and the user's signature, so keep the queued-redemption fallback for a rejected instant build.
 :::
 
 **Example:**
@@ -98,7 +107,7 @@ One vault's catalog entry plus live pricing:
 | `sharePrice` | string | Current NAV per share (live where a NAV source is wired; reference price otherwise) |
 | `apy` | string \| null | |
 | `minDeposit` | string | |
-| `settlement` | object | Includes indicative `instantRedeem` values — the authoritative switch lives on-chain (operator-tunable) |
+| `settlement` | object | `instantRedeem` is read live from the contract and carries `source` (`"chain"` \| `"catalog-unverified"`) — see the note above |
 | `cancelable` | bool | |
 | `requiresWhitelist` | bool | |
 | `paused` | bool | `true` when `status` is `paused` |

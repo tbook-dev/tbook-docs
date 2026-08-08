@@ -75,14 +75,24 @@ Nothing has moved yet — `transaction.data` is unsigned. Sui transactions stay 
 With a WaaS provider, pass `transaction.data` to its signing endpoint. With the Sui CLI/SDK for this walkthrough:
 
 ```ts
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { Transaction } from "@mysten/sui/transactions";
 
-const client = new SuiClient({ url: getFullnodeUrl("testnet") });
+// Sui deactivated its network-wide JSON-RPC service in July 2026 — point
+// reads and submits go over gRPC. `SuiClient`/`getFullnodeUrl` no longer
+// exist in @mysten/sui 2.x.
+const client = new SuiGrpcClient({
+  network: "testnet",
+  baseUrl: "https://fullnode.testnet.sui.io:443",
+});
 const tx = Transaction.from(Buffer.from(intent.transaction.data, "base64"));
-const result = await client.signAndExecuteTransaction({ signer: keypair, transaction: tx });
-console.log(result.digest);   // e.g. "8vJk…"
+const res = await client.signAndExecuteTransaction({ signer: keypair, transaction: tx });
+console.log(res.Transaction.digest);   // e.g. "8vJk…"
 ```
+
+The response is a discriminated union — `res.Transaction` on success,
+`res.FailedTransaction` when execution failed; both carry `digest` and
+`status: { success, error }`.
 
 ## 5. Report the digest (recommended)
 

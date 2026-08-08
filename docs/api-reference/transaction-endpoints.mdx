@@ -29,9 +29,14 @@ All build endpoints: secret or publishable key (contract style with `accountId`)
 | `vaultId`, `type`, `chain`, `rail` | string | echo of what was built |
 | `transaction.format` | enum | `sui:tx-bytes-base64` · `solana:tx-base58` |
 | `transaction.data` | string | the unsigned transaction — sign and submit **as-is** |
-| `summary` | object? | human-checkable amounts — see each endpoint for its fields; price-derived fields (`sharePrice`, `estimatedShares`, `quotedAt`) are best-effort and may be absent if the price source is briefly unavailable. `quotedAt` timestamps the shared price snapshot used — all instances quote from the same snapshot, so concurrent builds never disagree on price |
+| `summary` | object? | human-checkable amounts — see each endpoint for its fields. The price-derived fields (`sharePrice`, `estimatedShares`, `quotedAt`) are **rcUSDP-only**: they come from the rcUSDP NAV source, so an `xaua-sui` build omits them rather than pricing gold off a stablecoin's NAV — read their absence as "not quotable here", never as zero. They are also best-effort for rcUSDP (a briefly unavailable price source drops them and the build still succeeds). `quotedAt` timestamps the shared price snapshot used — all instances quote from the same snapshot, so concurrent builds never disagree on price |
 | `message` | string | human-readable description of the built transaction |
-| `expiresAt` | timestamp | ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
+| `expiresAt` | timestamp | How long we expect you to hold the unsigned bytes: ≈2 min on Solana (blockhash validity), ≈10 min on Sui. After expiry, rebuild with a **new** `Idempotency-Key` — the stale intent expires harmlessly |
+
+**Built Sui transactions also carry an on-chain expiry.** The bytes set `ValidDuring.maxEpoch` to the epoch after the one they were built in (~24–48h of validity — well beyond the `expiresAt` above, but finite). Two consequences if you hold funds against a submission:
+
+- Past that epoch the transaction can no longer execute, so a digest the chain has never seen is **permanently** absent. That is what makes it safe to release or refund a held position instead of waiting indefinitely — absence alone is never evidence.
+- Do not sit on built bytes for days expecting them to land. Rebuild.
 
 ---
 
@@ -59,7 +64,7 @@ On `xaua-sui`, a deposit is a gold subscription priced at the settlement cycle's
 **Body:** `{accountId, shares, mode}` — `shares` decimal string; `mode` is `"queued"` (default) or `"instant"`.
 
 - **Queued** — enters the settlement cycle; on settlement the proceeds are **paid directly to the account's wallet** (`transaction.redeem.settled` with `amount`) on `rcusdp-sui`. Vaults that allocate a claimable balance instead signal it via `claimable` in the same event — see the [event catalog](/webhooks/event-types).
-- **Instant** — only where the vault's catalog declares `settlement.instantRedeem.available`; pays USDC immediately, less the fee. Availability and fee are operator-tunable **on-chain** and the catalog values are indicative — attempt the build and handle rejection (fall back to queued), or read the on-chain vault state via `@tbookdev/vault-sdk-sui`.
+- **Instant** — only where [`GET /v1/vaults/:vaultId`](/api-reference/vault-endpoints) reports `settlement.instantRedeem.available: true` with `source: "chain"` (that value is read from the contract per request). Pays USDC immediately, less the fee. Never quote one on `source: "catalog-unverified"`, and keep a queued fallback: the operator switch can flip between your read and the user's signature.
 
 The `summary` echoes `{shares, mode}`.
 
